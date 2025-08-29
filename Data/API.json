@@ -1,0 +1,15 @@
+{
+  "base_url": "https://tigerdatastructures.io",
+  "endpoints": {
+    "AAAA": "AAAA",
+    "AAA": "AAAA",
+    "AAAA": "AAAA"
+  },
+  "cache_paths": {
+    "city_map": "data/...json",
+    "orders": "data/....json",
+    "weather": "data/...json"
+  },
+  "timeout_seconds": 8,
+  "use_cache_if_fail": true
+}
