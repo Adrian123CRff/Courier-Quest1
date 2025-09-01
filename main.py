@@ -1,5 +1,4 @@
-from src.api.api_manager import APIManager
-
+from src.logica.api.api_manager import APIManager
 
 def load_game_data():
     api_manager = APIManager(base_url="https://tigerdatastructures.io")
