@@ -51,3 +51,23 @@ class APIManager:
             else:
                 print(f"No cached or local data available for {endpoint}.")
                 return None
+
+    def load_local_data(self, endpoint: str) -> Optional[dict]:
+        """Carga datos directamente desde los archivos locales sin intentar el API."""
+        filename = self.endpoint_to_local.get(endpoint)
+        if not filename:
+            print(f"No local file mapping for endpoint: {endpoint}")
+            return None
+        local_file = self.data_dir / filename
+        if local_file.exists():
+            try:
+                with open(local_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"Error loading local data from {local_file}: {e}")
+                return None
+        else:
+            print(f"Local file {local_file} not found.")
+            return None
+        
+
