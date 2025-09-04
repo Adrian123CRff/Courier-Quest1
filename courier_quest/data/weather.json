@@ -1,0 +1,26 @@
+{
+  "city": "TigerCity",
+  "date": "2025-09-01",
+  "bursts": [
+    {
+      "duration_sec": 90,
+      "condition": "clouds",
+      "intensity": 0.2
+    },
+    {
+      "duration_sec": 75,
+      "condition": "rain",
+      "intensity": 0.6
+    },
+    {
+      "duration_sec": 80,
+      "condition": "storm",
+      "intensity": 0.4
+    }
+  ],
+  "meta": {
+    "units": {
+      "intensity": "0-1"
+    }
+  }
+}

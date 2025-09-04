@@ -1,0 +1,22 @@
+[
+  {
+    "id": "PED-001",
+    "pickup": [3, 7],
+    "dropoff": [10, 2],
+    "payout": 120,
+    "deadline": "2025-09-01T12:30:00",
+    "weight": 2,
+    "priority": 0,
+    "release_time": 0
+  },
+  {
+    "id": "PED-002",
+    "pickup": [6, 1],
+    "dropoff": [9, 9],
+    "payout": 200,
+    "deadline": "2025-09-01T12:10:00",
+    "weight": 1,
+    "priority": 1,
+    "release_time": 45
+  }
+]
