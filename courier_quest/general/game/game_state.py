@@ -1,4 +1,4 @@
-from arcade.examples.gui.exp_controller_inventory import Inventory
+from .inventory import Inventory
 from .weather_system import WeatherSystem
 
 class GameState:
