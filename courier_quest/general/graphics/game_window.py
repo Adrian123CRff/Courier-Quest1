@@ -174,7 +174,7 @@ class CourierQuest(arcade.Window):
     def start_playing(self):
         self.player_list = arcade.SpriteList()
         self.player = arcade.Sprite(
-            ":resources:images/animated_characters/female_person/femalePerson_idle.png",
+            "resources/icons/ciclista.png",
             scale=0.5
         )
         self.player.center_x = self.width // 2
