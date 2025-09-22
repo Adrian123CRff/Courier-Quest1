@@ -1,49 +1,45 @@
-from api_handler import APIHandler
-import json
-import time
+# test_api.py
+from api_client import ApiClient
+from state_initializer import init_game_state
 
-import json
-import time
 
 def test_api_connection():
-    """Prueba la conexión con la API"""
-    handler = APIHandler()
+    client = ApiClient(ttl=60)  # TTL de 60 segundos
 
-    print("Probando conexión con la API...")
-    print(f"URL base: {handler.base_url}")
+    print("=== Test de conexión con la API ===")
+    print(f"Base URL: {client.base_url}\n")
 
-    # Forzar actualización desde la API (ignorar caché)
-    print("\n1. Obteniendo mapa de la ciudad (forzando actualización)...")
-    city_map = handler.get_city_map()  # Usar el método adaptado
-    print(f"Resultado: {'Éxito' if city_map else 'Fallo'}")
-    print(f"Ciudad: {city_map.get('name', 'No disponible') if city_map else 'N/A'}")
-    if city_map and 'width' in city_map and 'height' in city_map:
-        print(f"Tamaño del mapa: {city_map['width']}x{city_map['height']}")
+    # --- 1. Mapa de la ciudad ---
+    print("1. Obteniendo mapa de la ciudad...")
+    city_map = client.get_city_map()
+    if city_map:
+        print(f"   ✔ Nombre: {city_map.get('name')}")
+        print(f"   ✔ Tamaño: {city_map['width']} x {city_map['height']}")
+        print(f"   ✔ Nº de edificios: {len(city_map['buildings'])}")
+        print(f"   ✔ Nº de carreteras: {len(city_map['roads'])}")
+    else:
+        print("   ✘ No se pudo obtener el mapa")
 
-    print("\n2. Obteniendo pedidos (forzando actualización)...")
-    jobs = handler.get_jobs()  # Usar el método estándar
-    print(f"Resultado: {'Éxito' if jobs else 'Fallo'}")
+    # --- 2. Pedidos (jobs) ---
+    print("\n2. Obteniendo pedidos (jobs)...")
+    jobs = client.get_jobs()
     if jobs:
-        if isinstance(jobs, list):
-            print(f"Número de trabajos: {len(jobs)}")
-            # Mostrar algunos trabajos de ejemplo
-            for i, job in enumerate(jobs[:3]):  # Mostrar solo los primeros 3
-                print(f"  Trabajo {i+1}: {job.get('id', 'N/A')}")
-        elif isinstance(jobs, dict) and 'jobs' in jobs:
-            print(f"Número de trabajos: {len(jobs['jobs'])}")
-        else:
-            print(f"Formato de datos: {type(jobs)}")
+        print(f"   ✔ Total de pedidos: {len(jobs)}")
+        for i, job in enumerate(jobs[:3]):  # muestra los primeros 3
+            print(f"     - Pedido {i+1}: ID={job.get('id', 'N/A')}, "
+                  f"Pickup={job.get('pickup')}, Dropoff={job.get('dropoff')}")
+    else:
+        print("   ✘ No se pudo obtener pedidos")
 
-    print("\n3. Obteniendo clima (forzando actualización)...")
-    weather = handler.get_weather()  # Usar el método adaptado
-    print(f"Resultado: {'Éxito' if weather else 'Fallo'}")
+    # --- 3. Clima ---
+    print("\n3. Obteniendo clima...")
+    weather = client.get_weather()
     if weather:
-        print(f"Clima: {weather.get('summary', 'No disponible')}")
-        print(f"Temperatura: {weather.get('temperature', 'N/D')}°C")
-        # Opcional: mostrar la condición raw para depuración
-        if 'raw_data' in weather:
-            print(f"Condición original: {weather['raw_data'].get('initial', {}).get('condition', 'N/A')}")
+        print(f"   ✔ Condición: {weather['summary']} ({weather['condition']})")
+        print(f"   ✔ Temperatura: {weather['temperature']}°C")
+    else:
+        print("   ✘ No se pudo obtener clima")
 
-    print(f"\nFuente de datos: {handler.last_source}")
 if __name__ == "__main__":
     test_api_connection()
+    init_game_state(ApiClient())

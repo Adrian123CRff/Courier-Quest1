@@ -1,7 +1,6 @@
 import requests
 import json
 
-
 def debug_api_responses():
     """Depura la estructura real de las respuestas API"""
 

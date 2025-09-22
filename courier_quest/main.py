@@ -9,7 +9,7 @@ from general.graphics.game_window import CourierQuest
 def main():
     game = CourierQuest()
     game.setup()
-
+    
     arcade.run()
 
 

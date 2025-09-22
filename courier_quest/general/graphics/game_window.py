@@ -119,6 +119,7 @@ class CourierQuest(arcade.Window):
         if self._txt_menu_error.text:
             self._txt_menu_error.draw()
         self._txt_menu_hint.draw()
+
     def draw_playing(self):
         self.bg_list.draw()
         if self.player_list:
@@ -173,7 +174,7 @@ class CourierQuest(arcade.Window):
     def start_playing(self):
         self.player_list = arcade.SpriteList()
         self.player = arcade.Sprite(
-            ":resources:images/animated_characters/female_person/femalePerson_idle.png",
+            "resources/icons/ciclista.png",
             scale=0.5
         )
         self.player.center_x = self.width // 2
@@ -208,4 +209,3 @@ class CourierQuest(arcade.Window):
         sx = width / tex_w
         sy = height / tex_h
         self.bg_sprite.scale = max(sx, sy)
-
