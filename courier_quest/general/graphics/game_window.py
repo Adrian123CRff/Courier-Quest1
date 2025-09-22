@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from general.run_api.api_handler import APIHandler
+from run_api.api_client import ApiClient
 
 WIDTH = 800
 HEIGHT = 600
@@ -14,7 +14,7 @@ class CourierQuest(arcade.Window):
     def __init__(self):
         super().__init__(width=WIDTH, height=HEIGHT, title=TITLE, update_rate=1/60)
         arcade.set_background_color(arcade.color.DARK_SLATE_BLUE)
-        self.api_handler = APIHandler()
+        self.api_client = ApiClient()
         self.city_map = None
         self.jobs = None
         self.weather = None
@@ -71,9 +71,9 @@ class CourierQuest(arcade.Window):
         self.game_state = "loading"
         self.error_message = None
         try:
-            self.city_map = self.api_handler.get_city_map()
-            self.jobs = self.api_handler.get_jobs()
-            self.weather = self.api_handler.get_weather()
+            self.city_map = self.api_client.get_city_map()
+            self.jobs = self.api_client.get_jobs()
+            self.weather = self.api_client.get_weather()
             if all([self.city_map, self.jobs, self.weather]):
                 self.game_state = "menu"
                 print("Datos del juego cargados exitosamente!")
@@ -86,7 +86,7 @@ class CourierQuest(arcade.Window):
             self.game_state = "menu"
             print(self.error_message)
 
-        source = "API" if self.api_handler.last_source == "api" else "Caché/Local"
+        source = "API" if self.api_client.last_source == "api" else "Caché/Local"
         jobs_count = len(self.jobs) if isinstance(self.jobs, (list, tuple)) else ("OK" if self.jobs else "N/D")
         weather_txt = (self.weather.get("summary", "OK")
                        if isinstance(self.weather, dict)
@@ -124,7 +124,7 @@ class CourierQuest(arcade.Window):
         self.bg_list.draw()
         if self.player_list:
             self.player_list.draw()
-        source = "API" if self.api_handler.last_source == "api" else "Caché/Local"
+        source = "API" if self.api_client.last_source == "api" else "Caché/Local"
         self._txt_hud_source.text = f"Origen: {source}"
         self._txt_hud_source.draw()
         self._txt_hud_back.draw()

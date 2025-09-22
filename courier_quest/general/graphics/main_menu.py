@@ -3,7 +3,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from general.run_api.api_handler import ApiClient
+from run_api.api_client import ApiClient
 
 WIDTH = 800
 HEIGHT = 600
@@ -14,7 +14,7 @@ class CourierQuest(arcade.Window):
     def __init__(self,window):
         super().__init__(window)
         self.window = window
-        self.api_handler = APIHandler()
+        self.api_handler = ApiClient()
         self.city_map = None
         self.jobs = None
         self.weather = None

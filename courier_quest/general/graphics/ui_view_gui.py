@@ -2,8 +2,8 @@ import arcade
 import arcade.gui
 
 from run_api.api_client import ApiClient
-from state_initializer import init_game_state
-from save_manager import save_game, load_game, list_saves
+from run_api.state_initializer import init_game_state
+from run_api.save_manager import save_game, load_game, list_saves
 from game_view import GameView
 
 SCREEN_WIDTH = 800
@@ -17,7 +17,7 @@ class MainMenuView(arcade.View):
     def __init__(self):
         super().__init__()
         self.manager = arcade.gui.UIManager()
-        self.manager.enable()
+        #self.manager.enable() #habilitar on_show_view
 
         # Layout vertical
         v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=20)
@@ -28,7 +28,18 @@ class MainMenuView(arcade.View):
 
         @continue_btn.event("on_click")
         def on_click_continue(event):
-            self.window.show_view(GameMenuView())
+            try:
+                saves = list_saves()
+                if saves:
+                    state = load_game(saves[0])
+                    if state:
+                        self.window.show_view(GameView(state))
+                        return
+                # Si no hay guardados o falla la carga, ir al menú de juego
+                self.window.show_view(MainMenuView.GameMenuView())
+            except Exception as e:
+                print(f"[UI] Error al continuar: {e}")
+                self.window.show_view(MainMenuView.GameMenuView())
 
         # Botón: Salir
         quit_btn = arcade.gui.UIFlatButton(text="Salir", width=200)
@@ -38,13 +49,19 @@ class MainMenuView(arcade.View):
         def on_click_quit(event):
             arcade.close_window()
 
-        # Centrar todo
+        # Centrar todito
         anchor = arcade.gui.UIAnchorLayout()
         anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
         self.manager.add(anchor)
 
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+
+    def on_show_view(self):
+        self.manager.enable()
+
+    def on_hide_view(self):
+        self.manager.disable()
 
     def on_draw(self):
         self.clear()
@@ -60,20 +77,26 @@ class MainMenuView(arcade.View):
         def __init__(self):
             super().__init__()
             self.manager = arcade.gui.UIManager()
-            self.manager.enable()
+            #self.manager.enable() #habilitar on_show_view
 
+            #layout vertical
             v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=20)
+
 
             # Botón Nueva Partida
             new_game_button = arcade.gui.UIFlatButton(text="Nueva Partida", width=200)
             v_box.add(new_game_button)
 
+
             @new_game_button.event("on_click")
             def on_click_new(event):
-                api = ApiClient()
-                state = init_game_state(api)
-                save_game(state, "slot1.sav")  # guardar inmediatamente
-                self.window.show_view(GameView(state))  # <--- AHORA CON STATE
+                try:
+                    api = ApiClient()
+                    state = init_game_state(api)
+                    save_game(state, "slot1.sav")  # guardar inmediatamente
+                    self.window.show_view(GameView(state))
+                except Exception as e:
+                    print(f"[UI] Error creando nueva partida: {e}")
 
             # Botón Cargar Partida
             load_button = arcade.gui.UIFlatButton(text="Cargar Partida", width=200)
@@ -81,13 +104,16 @@ class MainMenuView(arcade.View):
 
             @load_button.event("on_click")
             def on_click_load(event):
-                saves = list_saves()
-                if saves:
-                    state = load_game(saves[0])  # carga el primer slot
-                    if state:
-                        self.window.show_view(GameView(state))
-                else:
+                try:
+                    saves = list_saves()
+                    if saves:
+                        state = load_game(saves[0])  # carga el primer slot
+                        if state:
+                            self.window.show_view(GameView(state))
+                            return
                     print("[INFO] No hay partidas guardadas")
+                except Exception as e:
+                    print(f"[UI] Error al cargar partida: {e}")
 
             # Botón Retroceder
             back_button = arcade.gui.UIFlatButton(text="Retroceder", width=200)
@@ -95,13 +121,18 @@ class MainMenuView(arcade.View):
 
             @back_button.event("on_click")
             def on_click_back(event):
-                from ui_views_gui import MainMenuView
                 self.window.show_view(MainMenuView())
 
             # Centrar layout
             anchor = arcade.gui.UIAnchorLayout()
             anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
             self.manager.add(anchor)
+
+    def on_show_view(self):
+        self.manager.enable()
+
+    def on_hide_view(self):
+        self.manager.disable()
 
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_SLATE_GRAY)
