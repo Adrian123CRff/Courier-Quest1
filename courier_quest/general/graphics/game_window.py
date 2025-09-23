@@ -1,4 +1,4 @@
-import arcade
+"""import arcade
 import sys
 import os
 
@@ -209,3 +209,4 @@ class CourierQuest(arcade.Window):
         sx = width / tex_w
         sy = height / tex_h
         self.bg_sprite.scale = max(sx, sy)
+"""

@@ -4,7 +4,7 @@ import arcade.gui
 from run_api.api_client import ApiClient
 from run_api.state_initializer import init_game_state
 from run_api.save_manager import save_game, load_game, list_saves
-from game_view import GameView
+#from game_view import GameView
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -148,14 +148,36 @@ class MainMenuView(arcade.View):
 # Vista: Juego en curso
 # ========================
 class GameView(arcade.View):
+    def __init__(self, state):
+        super().__init__()
+        from .map_manager import GameMap  # import local para evitar ciclos
+        self.state = state or {}
+        self.game_map = GameMap(self.state.get("city_map", {}))
+        # tamaño de celda inicial basado en ventana actual
+        w = max(1, self.game_map.width)
+        h = max(1, self.game_map.height)
+        self.tile_size = max(4, min(self.window.width // w, self.window.height // h))
+
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_GREEN)
 
+    def on_resize(self, width: int, height: int):
+        super().on_resize(width, height)
+        # recalcular tamaño de tile al cambiar la ventana
+        w = max(1, self.game_map.width)
+        h = max(1, self.game_map.height)
+        self.tile_size = max(4, min(width // w, height // h))
+
     def on_draw(self):
         self.clear()
-        arcade.draw_text("Partida en curso", SCREEN_WIDTH/2, SCREEN_HEIGHT/2,
-                         arcade.color.WHITE, 28, anchor_x="center")
+        # Dibujo del mapa (modo debug, coloreado por tipo de celda)
+        self.game_map.draw_debug(tile_size=self.tile_size, draw_grid_lines=True)
+        # Overlay opcional
+        arcade.draw_text("Partida en curso", self.window.width / 2, self.window.height - 40,
+                         arcade.color.WHITE, 20, anchor_x="center")
 
+
+# ... existing code ...
 
 # ========================
 # Programa Principal

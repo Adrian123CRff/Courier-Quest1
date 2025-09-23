@@ -4,17 +4,34 @@ import json
 import pickle
 import time
 from pathlib import Path
-from typing import Optional
-from models import GameState
+from typing import Optional, Any, Dict
+from dataclasses import is_dataclass, asdict
 
-SAVE_DIR = Path("saves")
+
+
+BASE_DIR = Path(__file__).resolve().parent
+SAVE_DIR = BASE_DIR / "saves"
 DEBUG_DIR = SAVE_DIR / "debug"
 SAVE_DIR.mkdir(exist_ok=True, parents=True)
 DEBUG_DIR.mkdir(exist_ok=True, parents=True)
 
-def save_game(state: GameState, slot_name: str = "slot1.sav") -> str:
+
+
+def save_game(state: Any, slot_name: str = "slot1.sav") -> str:
     """Guarda un GameState en formato binario (.sav) y en JSON para debug."""
     path = SAVE_DIR / slot_name
+
+    # Normalizar el estado a dict
+    if isinstance(state, dict):
+        state_dict: Dict[str, Any] = state
+    elif hasattr(state, "to_dict") and callable(getattr(state, "to_dict")):
+        state_dict = state.to_dict()
+    elif is_dataclass(state):
+        state_dict = asdict(state)
+    else:
+        raise TypeError(
+            f"save_game() espera un dict, un objeto con to_dict() o una dataclass; recibido {type(state).__name__}"
+        )
 
     payload = {
         "meta": {
@@ -37,7 +54,7 @@ def save_game(state: GameState, slot_name: str = "slot1.sav") -> str:
     print(f"[SAVE] Partida guardada en {path}")
     return str(path)
 
-def load_game(slot_name: str = "slot1.sav") -> Optional[GameState]:
+def load_game(slot_name: str = "slot1.sav") -> Optional[Dict[str, Any]]:
     """Carga un GameState desde un archivo .sav binario."""
     path = SAVE_DIR / slot_name
     if not path.exists():
@@ -48,10 +65,13 @@ def load_game(slot_name: str = "slot1.sav") -> Optional[GameState]:
         with open(path, "rb") as f:
             payload = pickle.load(f)
         state_dict = payload.get("state", {})
-        return GameState.from_dict(state_dict)
+        if not isinstance(state_dict, dict):
+            raise ValueError("El contenido de 'state' no es un dict válido")
+        return state_dict
     except Exception as e:
         print(f"[ERROR] Falló la carga de {slot_name}: {e}")
         return None
+
 
 def list_saves() -> list[str]:
     """Lista los archivos de guardado disponibles ordenados por fecha."""

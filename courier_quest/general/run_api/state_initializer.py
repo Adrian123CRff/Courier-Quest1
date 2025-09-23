@@ -3,10 +3,11 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from models import GameState
-from api_client import ApiClient
+from .models import GameState
+from .api_client import ApiClient
 
-CACHE_PATH = Path("api_cache") / "city_map.json"
+BASE_DIR = Path(__file__).resolve().parent
+CACHE_PATH = BASE_DIR / "api_cache" / "city_map.json"
 
 def _fallback_tiles_from_cache(city_map: dict) -> dict:
     """
