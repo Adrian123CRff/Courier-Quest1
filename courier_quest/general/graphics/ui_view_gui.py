@@ -4,7 +4,8 @@ import arcade.gui
 from run_api.api_client import ApiClient
 from run_api.state_initializer import init_game_state
 from run_api.save_manager import save_game, load_game, list_saves
-#from game_view import GameView
+from weather_markov import WeatherMarkov
+from weather_renderer import WeatherRenderer
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
@@ -147,37 +148,68 @@ class MainMenuView(arcade.View):
 # ========================
 # Vista: Juego en curso
 # ========================
+# ========================
+# Vista: Juego en curso (con clima dinámico)
+# ========================
+import arcade
+from graphics.weather_markov import WeatherMarkov
+from graphics.weather_renderer import WeatherRenderer
+from run_api.api_client import ApiClient
+
 class GameView(arcade.View):
     def __init__(self, state):
         super().__init__()
         from .map_manager import GameMap  # import local para evitar ciclos
+
+        # Estado inicial
         self.state = state or {}
         self.game_map = GameMap(self.state.get("city_map", {}))
-        # tamaño de celda inicial basado en ventana actual
+
+        # Tamaño de celda inicial según ventana
         w = max(1, self.game_map.width)
         h = max(1, self.game_map.height)
         self.tile_size = max(4, min(self.window.width // w, self.window.height // h))
+
+        # --- Clima dinámico ---
+        self.weather_manager = WeatherMarkov(api=ApiClient(), seed=42)
+        self.weather_manager.apply_to_game_state(self.state)
+        self.weather_renderer = WeatherRenderer(self)
 
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_GREEN)
 
     def on_resize(self, width: int, height: int):
         super().on_resize(width, height)
-        # recalcular tamaño de tile al cambiar la ventana
+        # Recalcular tamaño de tile al cambiar ventana
         w = max(1, self.game_map.width)
         h = max(1, self.game_map.height)
         self.tile_size = max(4, min(width // w, height // h))
+        # Ajustar overlay de clima
+        self.weather_renderer.on_resize(width, height)
+
+    def on_update(self, dt: float):
+        # --- Actualizar clima con Markov ---
+        self.weather_manager.update(dt)
+        self.weather_manager.apply_to_game_state(self.state)
+        # Actualizar renderer del clima
+        self.weather_renderer.update(dt, self.state.get("weather_state", {}))
 
     def on_draw(self):
         self.clear()
-        # Dibujo del mapa (modo debug, coloreado por tipo de celda)
+        # Dibujar mapa
         self.game_map.draw_debug(tile_size=self.tile_size, draw_grid_lines=True)
-        # Overlay opcional
-        arcade.draw_text("Partida en curso", self.window.width / 2, self.window.height - 40,
+        # Overlay de clima
+        self.weather_renderer.draw()
+        # HUD
+        weather = self.state.get("weather_state", {})
+        cond = weather.get("summary", "Desconocido")
+        temp = weather.get("temperature", "--")
+        arcade.draw_text(f"Clima: {cond} {temp}°C",
+                         10, 10, arcade.color.WHITE, 14)
+        arcade.draw_text("Partida en curso",
+                         self.window.width / 2, self.window.height - 40,
                          arcade.color.WHITE, 20, anchor_x="center")
 
-
-# ... existing code ...
 
 # ========================
 # Programa Principal
