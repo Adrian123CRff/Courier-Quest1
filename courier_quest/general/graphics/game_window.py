@@ -30,7 +30,6 @@ class MapPlayerView(View):
             14
         )
 
-        # 🌦️ Clima
         self.weather_markov = WeatherMarkov(api=ApiClient(), seed=123)
         self.weather_renderer = WeatherRenderer(self)
 
@@ -46,12 +45,12 @@ class MapPlayerView(View):
         # HUD dinámico
         self.pos_text.text = f"Pos cell: ({self.player.cell_x},{self.player.cell_y})"
         self.pos_text.draw()
-        # 🌦️ Dibujar efectos climáticos
+        # Dibujar efectos climáticos
         self.weather_renderer.draw()
 
     def on_update(self, dt: float) -> None:
         self.player.update(dt)
-        # 🌦️ Actualizar clima
+        #Actualizar clima
         self.weather_markov.update(dt)
         self.weather_markov.apply_to_game_state(self.state)
         self.weather_renderer.update(dt, self.state.weather_state)
