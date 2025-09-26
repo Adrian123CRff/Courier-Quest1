@@ -1,6 +1,6 @@
 # game_view.py
 import arcade
-from general.graphics.map_manager import GameMap
+from graphics.map_manager import GameMap
 
 class GameView(arcade.View):
     def __init__(self, state):

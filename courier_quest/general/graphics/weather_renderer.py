@@ -1,4 +1,3 @@
-# graphics/weather_renderer.py
 """
 WeatherRenderer: efectos visuales sencillos para el clima.
 - update(dt, weather_state) actualiza estado interno (cloud_opacity, lluvia).
@@ -8,7 +7,8 @@ WeatherRenderer: efectos visuales sencillos para el clima.
 import arcade
 import math
 import random
-from typing import List, Any
+from typing import List
+
 
 class RainDrop:
     def __init__(self, x, y, speed, length):
@@ -17,11 +17,9 @@ class RainDrop:
         self.speed = speed
         self.length = length
 
+
 class WeatherRenderer:
     def __init__(self, view, seed: int = None):
-        """
-        view: vista que contiene .window.width/.height, .game_map, .tile_size
-        """
         self.view = view
         self.width = getattr(view.window, "width", 800)
         self.height = getattr(view.window, "height", 600)
@@ -38,21 +36,18 @@ class WeatherRenderer:
     def update(self, dt: float, weather_state: dict):
         cond = weather_state.get("condition", "clear")
         intensity = float(weather_state.get("intensity", 0.0))
-        # cloud opacity heuristic
+
         if cond in ("clouds", "rain_light", "rain", "storm", "fog"):
             target = min(0.95, 0.25 + intensity * 0.6)
         else:
             target = 0.0
-        # smooth approach
         self.cloud_opacity += (target - self.cloud_opacity) * min(1.0, dt * 2.0)
 
-        # fog_strength for fog condition
         if cond == "fog":
             self.fog_strength += (min(0.9, 0.2 + intensity * 0.7) - self.fog_strength) * min(1.0, dt * 2.0)
         else:
             self.fog_strength += (0.0 - self.fog_strength) * min(1.0, dt * 2.0)
 
-        # rain population
         if cond in ("rain_light", "rain"):
             target_drops = int(40 + intensity * 160)
         elif cond == "storm":
@@ -70,7 +65,6 @@ class WeatherRenderer:
         if len(self.drops) > target_drops:
             self.drops = self.drops[:target_drops]
 
-        # update drops positions
         for d in self.drops:
             d.y -= d.speed * dt
             d.x += math.sin(d.y * 0.01) * 3 * dt
@@ -79,12 +73,6 @@ class WeatherRenderer:
                 d.x = self.rng.uniform(0, self.width)
 
     def _tile_overlay_alpha(self, cond: str, intensity: float) -> int:
-        """
-        Devuelve alpha 0..200 para overlay por tile (oscurecer).
-        - lluvia/tormenta: negro semi-transparente
-        - fog: blanco translúcido
-        - clouds: leve oscurecimiento
-        """
         if cond == "storm":
             return int(min(220, 160 + intensity * 60))
         if cond == "rain":
@@ -98,44 +86,49 @@ class WeatherRenderer:
         return 0
 
     def draw(self):
-        # draw global cloud overlay (bluish)
         if self.cloud_opacity > 0.01:
             alpha = int(max(0, min(200, self.cloud_opacity * 255)))
-            # dark blue overlay to simulate darker sky from clouds
-            arcade.draw_lrtb_rectangle_filled(0, self.width, self.height, 0, (20, 24, 40, alpha))
+            arcade.draw_lrbt_rectangle_filled(
+                0, self.width, 0, self.height, (20, 24, 40, alpha)
+            )
 
-        # If there is a map available, draw per-tile overlays to change tile shading
         gm = getattr(self.view, "game_map", None)
         tile_size = getattr(self.view, "tile_size", None)
         if gm and tile_size:
             grid = getattr(gm, "grid", None)
             if grid:
                 rows = len(grid)
-                cols = len(grid[0]) if rows>0 else 0
-                # determine current weather state quick (try view.state or manager)
-                s = None
-                if hasattr(self.view, "weather_manager") and self.view.weather_manager:
-                    s = self.view.weather_manager.get_state()
-                else:
-                    s = (getattr(self.view, "state", None) or {}).get("weather_state", {})
-                cond = s.get("condition", "clear")
-                intensity = float(s.get("intensity", 0.0))
+                cols = len(grid[0]) if rows > 0 else 0
+                s = getattr(self.view, "state", None)
+                ws = getattr(s, "weather_state", {}) if s else {}
+                cond = ws.get("condition", "clear")
+                intensity = float(ws.get("intensity", 0.0))
                 alpha = self._tile_overlay_alpha(cond, intensity)
-                # overlay color: black for rain/storm/clouds, white-ish for fog
                 for y in range(rows):
                     for x in range(cols):
                         px = x * tile_size + tile_size / 2
-                        # flip Y if map_manager uses FLIP_Y (we rely on map drawn already; centers must match)
-                        # Use same coordinate transform map_manager.draw_debug uses: it draws tile at (x*tile_size, (rows-1-y)*tile_size)
                         py = (rows - 1 - y) * tile_size + tile_size / 2
                         if alpha > 0:
                             if cond == "fog":
-                                # fog: light white
-                                arcade.draw_rectangle_filled(px, py, tile_size, tile_size, (220, 220, 220, int(alpha*0.7)))
+                                arcade.draw_lbwh_rectangle_filled(
+                                    px - tile_size / 2,
+                                    py - tile_size / 2,
+                                    tile_size,
+                                    tile_size,
+                                    (220, 220, 220, int(alpha * 0.7))
+                                )
                             else:
-                                arcade.draw_rectangle_filled(px, py, tile_size, tile_size, (0, 0, 0, alpha))
+                                arcade.draw_lbwh_rectangle_filled(
+                                    px - tile_size / 2,
+                                    py - tile_size / 2,
+                                    tile_size,
+                                    tile_size,
+                                    (0, 0, 0, alpha)
+                                )
 
-        # draw rain drops (foreground)
         if self.drops:
             for d in self.drops:
-                arcade.draw_line(d.x, d.y, d.x + 1.5, d.y + d.length, arcade.color.AZURE, 1)
+                arcade.draw_line(
+                    d.x, d.y, d.x + 1.5, d.y + d.length, arcade.color.AZURE, 1
+                )
+

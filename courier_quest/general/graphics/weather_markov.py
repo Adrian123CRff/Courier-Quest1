@@ -9,8 +9,10 @@ import time
 import random
 from typing import Dict, Optional, Callable, List, Any, Tuple
 
+
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
+
 
 class WeatherMarkov:
     DEFAULT_CONDITIONS = [
@@ -35,12 +37,20 @@ class WeatherMarkov:
         seed: Optional[int] = None,
         min_duration: int = 45,
         max_duration: int = 60,
-        transition_smooth_seconds: float = 2.5,
+        transition_smooth_seconds: float = 3.0,
         enable_history: bool = True,
+        debug: bool = False,   # 👈 nuevo parámetro
     ):
         self.rng = random.Random(seed)
-        self.min_duration = int(min_duration)
-        self.max_duration = int(max_duration)
+
+        # ✅ modo debug: ráfagas más rápidas (3–5 seg)
+        if debug:
+            self.min_duration = 3
+            self.max_duration = 5
+        else:
+            self.min_duration = int(min_duration)
+            self.max_duration = int(max_duration)
+
         self.transition_smooth_seconds = float(transition_smooth_seconds)
 
         # Matriz: prioridad argumento > API (si trae algo) > default
@@ -50,7 +60,6 @@ class WeatherMarkov:
         if api is not None:
             try:
                 api_weather = api.get_weather() or {}
-                # intentar extraer un "transition_matrix"-like si la API lo suministra
                 for key in ("transition_matrix", "transitions", "forecast", "series"):
                     candidate = api_weather.get(key)
                     if isinstance(candidate, dict) and candidate:
@@ -65,9 +74,11 @@ class WeatherMarkov:
         # estado inicial
         self.current_condition: str = "clear"
         self.current_intensity: float = round(self.rng.uniform(0.25, 1.0), 3)
-        self.current_multiplier: float = self.base_multiplier.get(self.current_condition, 1.0) * self.current_intensity
+        self.current_multiplier: float = self.base_multiplier.get(
+            self.current_condition, 1.0
+        ) * self.current_intensity
 
-        # tiempo y duracion
+        # tiempo y duración
         self.start_time = time.time()
         self.duration = self._pick_duration()
 
@@ -130,26 +141,24 @@ class WeatherMarkov:
             self.history.append((cond, float(intensity)))
 
     def update(self, dt: float):
-        """Llamar cada tick con dt (segundos)."""
         now = time.time()
 
-        # interpolación si en transición
         if self._transitioning:
             t = (now - self._transition_start_time) / max(1e-9, self._transition_duration)
             if t >= 1.0:
                 self.current_multiplier = self._transition_to_multiplier
                 self._transitioning = False
             else:
-                self.current_multiplier = lerp(self._transition_from_multiplier, self._transition_to_multiplier, t)
+                self.current_multiplier = lerp(
+                    self._transition_from_multiplier, self._transition_to_multiplier, t
+                )
 
-        # comprobar fin de ráfaga (si no transitando)
         elapsed = now - self.start_time
         if (not self._transitioning) and (elapsed >= self.duration):
             next_cond = self._choose_next_condition()
             self._start_transition_to(next_cond)
 
     def _start_transition_to(self, new_condition: str):
-        # push history
         self._push_history(self.current_condition, self.current_intensity)
 
         self._transitioning = True
@@ -160,12 +169,10 @@ class WeatherMarkov:
         new_intensity = round(self.rng.uniform(0.25, 1.0), 3)
         new_multiplier = self.base_multiplier.get(new_condition, 1.0) * new_intensity
 
-        # set logical condition early
         self.current_condition = new_condition
         self.current_intensity = new_intensity
         self._transition_to_multiplier = new_multiplier
 
-        # reset timer for the next burst (duration applies after transition)
         self.start_time = time.time()
         self.duration = self._pick_duration()
         self._emit_state()
