@@ -1,4 +1,3 @@
-# game_window.py
 import arcade
 from arcade import Window, View, Text
 from run_api.api_client import ApiClient
@@ -10,6 +9,7 @@ from graphics.weather_renderer import WeatherRenderer
 
 SCREEN_SIZE = 800
 TILE_SIZE = 24
+
 
 class MapPlayerView(View):
     def __init__(self, state) -> None:
@@ -23,6 +23,13 @@ class MapPlayerView(View):
         start_cy = rows // 2
         self.player: Player = Player((start_cx, start_cy), TILE_SIZE, rows, flip_y=FLIP_Y)
 
+        self.base_scale = 1.0
+        if hasattr(self.player, "sprite"):
+            self.base_scale = abs(self.player.sprite.scale_x)
+
+
+        self.facing = "right"
+
         self.pos_text: Text = Text(
             f"Pos cell: ({self.player.cell_x},{self.player.cell_y})",
             10, SCREEN_SIZE - 20,
@@ -33,36 +40,77 @@ class MapPlayerView(View):
         self.weather_markov = WeatherMarkov(api=ApiClient(), seed=123)
         self.weather_renderer = WeatherRenderer(self)
 
+        self.weather_text: Text = Text(
+            "Clima: clear (?)",
+            10, SCREEN_SIZE - 40,
+            arcade.color.LIGHT_BLUE,
+            14
+        )
+
     def on_show(self) -> None:
         arcade.set_background_color(arcade.color.DARK_SLATE_GRAY)
 
     def on_draw(self) -> None:
         self.clear()
-        # Dibujar mapa
         self.game_map.draw_debug(tile_size=TILE_SIZE, draw_grid_lines=True)
-        # Dibujar jugador
         self.player.draw()
-        # HUD dinámico
         self.pos_text.text = f"Pos cell: ({self.player.cell_x},{self.player.cell_y})"
         self.pos_text.draw()
-        # Dibujar efectos climáticos
+        self.weather_text.draw()
         self.weather_renderer.draw()
 
     def on_update(self, dt: float) -> None:
         self.player.update(dt)
-        #Actualizar clima
+
         self.weather_markov.update(dt)
         self.weather_markov.apply_to_game_state(self.state)
         self.weather_renderer.update(dt, self.state.weather_state)
 
+        cond = self.state.weather_state.get("condition", "?")
+        intensity = self.state.weather_state.get("intensity", "?")
+        self.weather_text.text = f"Clima: {cond} (int={intensity})"
+
+
+    def _apply_facing(self):
+        """Ajusta el sprite según la dirección actual."""
+        if not hasattr(self.player, "sprite"):
+            return
+        mag = self.base_scale
+        if self.facing == "right":
+            self.player.sprite.angle = 0
+            self.player.sprite.scale_x = -mag
+        elif self.facing == "left":
+            self.player.sprite.angle = 0
+            self.player.sprite.scale_x = mag
+        elif self.facing == "up":
+            self.player.sprite.angle = 90
+            self.player.sprite.scale_x = mag
+        elif self.facing == "down":
+            self.player.sprite.angle = 270
+            self.player.sprite.scale_x = mag
+
+    # ---------------- Input ----------------
     def on_key_press(self, key: int, modifiers: int) -> None:
         dx, dy = 0, 0
-        if key == arcade.key.UP: dy = 1
-        elif key == arcade.key.DOWN: dy = -1
-        elif key == arcade.key.LEFT: dx = -1
-        elif key == arcade.key.RIGHT: dx = 1
-        else: return
+        if key == arcade.key.UP:
+            dy = -1
+            self.facing = "up"
+        elif key == arcade.key.DOWN:
+            dy = 1
+            self.facing = "down"
+        elif key == arcade.key.LEFT:
+            dx = -1
+            self.facing = "left"
+        elif key == arcade.key.RIGHT:
+            dx = 1
+            self.facing = "right"
+        else:
+            return
 
+        # aplicar orientación
+        self._apply_facing()
+
+        # mover si es válido
         target_cx = self.player.cell_x + dx
         target_cy = self.player.cell_y + dy
 
@@ -72,14 +120,15 @@ class MapPlayerView(View):
             else:
                 print("Bloqueado por:", self.game_map.grid[target_cy][target_cx])
 
+
 def main() -> None:
     api = ApiClient()
     state = init_game_state(api)
-    window: Window = arcade.Window(SCREEN_SIZE, SCREEN_SIZE, "Test Mapa con Player + Clima")
+    window: Window = arcade.Window(SCREEN_SIZE, SCREEN_SIZE, "Mapa con Player + Clima")
     view = MapPlayerView(state)
     window.show_view(view)
     arcade.run()
 
+
 if __name__ == "__main__":
     main()
-
