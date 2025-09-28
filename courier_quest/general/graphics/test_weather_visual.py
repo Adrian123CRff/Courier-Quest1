@@ -1,5 +1,9 @@
 # test_weather_visual.py
 # test_weather_visual.py
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..')))
 import arcade
 from run_api.state_initializer import init_game_state
 from run_api.api_client import ApiClient

@@ -1,7 +1,7 @@
 """
 WeatherRenderer: efectos visuales sencillos para el clima.
-- update(dt, weather_state) actualiza estado interno (cloud_opacity, lluvia).
-- draw() dibuja overlay global + overlays por tile para 'oscurecer' o 'niebla'.
+- update(dt, weather_state) actualiza estado interno (cloud_opacity, lluvia, nieve).
+- draw() dibuja overlay global + overlays por tile para 'oscurecer' o 'niebla' o nieve.
 """
 
 import arcade
@@ -18,14 +18,30 @@ class RainDrop:
         self.length = length
 
 
+class SnowFlake:
+    def __init__(self, x, y, speed, size):
+        self.x = x
+        self.y = y
+        self.speed = speed
+        self.size = size
+
+
 class WeatherRenderer:
     def __init__(self, view, seed: int = None):
         self.view = view
         self.width = getattr(view.window, "width", 800)
         self.height = getattr(view.window, "height", 600)
         self.rng = random.Random(seed)
+
+        # lluvia
         self.drops: List[RainDrop] = []
         self.max_drops = 500
+
+        # nieve
+        self.snowflakes: List[SnowFlake] = []
+        self.max_flakes = 300
+
+        # overlays
         self.cloud_opacity = 0.0
         self.fog_strength = 0.0
 
@@ -37,7 +53,8 @@ class WeatherRenderer:
         cond = weather_state.get("condition", "clear")
         intensity = float(weather_state.get("intensity", 0.0))
 
-        if cond in ("clouds", "rain_light", "rain", "storm", "fog"):
+        # --- opacidad de nubes y niebla ---
+        if cond in ("clouds", "rain_light", "rain", "storm", "fog", "snow"):
             target = min(0.95, 0.25 + intensity * 0.6)
         else:
             target = 0.0
@@ -48,6 +65,7 @@ class WeatherRenderer:
         else:
             self.fog_strength += (0.0 - self.fog_strength) * min(1.0, dt * 2.0)
 
+        # --- lluvia ---
         if cond in ("rain_light", "rain"):
             target_drops = int(40 + intensity * 160)
         elif cond == "storm":
@@ -72,6 +90,29 @@ class WeatherRenderer:
                 d.y = self.height + self.rng.uniform(0, 50)
                 d.x = self.rng.uniform(0, self.width)
 
+        # --- nieve ---
+        if cond == "snow":
+            target_flakes = int(30 + intensity * 120)
+        else:
+            target_flakes = 0
+
+        target_flakes = min(self.max_flakes, target_flakes)
+        while len(self.snowflakes) < target_flakes:
+            x = self.rng.uniform(0, self.width)
+            y = self.rng.uniform(0, self.height)
+            speed = self.rng.uniform(20, 60)  # mucho más lento que lluvia
+            size = self.rng.uniform(2, 5)
+            self.snowflakes.append(SnowFlake(x, y, speed, size))
+        if len(self.snowflakes) > target_flakes:
+            self.snowflakes = self.snowflakes[:target_flakes]
+
+        for f in self.snowflakes:
+            f.y -= f.speed * dt
+            f.x += math.sin(f.y * 0.01) * 0.5  # ligero zigzag
+            if f.y < -5:
+                f.y = self.height + self.rng.uniform(0, 50)
+                f.x = self.rng.uniform(0, self.width)
+
     def _tile_overlay_alpha(self, cond: str, intensity: float) -> int:
         if cond == "storm":
             return int(min(220, 160 + intensity * 60))
@@ -83,15 +124,19 @@ class WeatherRenderer:
             return int(min(80, 10 + intensity * 50))
         if cond == "fog":
             return int(min(200, 60 + intensity * 140))
+        if cond == "snow":
+            return int(min(160, 40 + intensity * 100))
         return 0
 
     def draw(self):
+        # overlay global
         if self.cloud_opacity > 0.01:
             alpha = int(max(0, min(200, self.cloud_opacity * 255)))
             arcade.draw_lrbt_rectangle_filled(
                 0, self.width, 0, self.height, (20, 24, 40, alpha)
             )
 
+        # overlay por tiles (sombra, niebla, nieve)
         gm = getattr(self.view, "game_map", None)
         tile_size = getattr(self.view, "tile_size", None)
         if gm and tile_size:
@@ -117,6 +162,14 @@ class WeatherRenderer:
                                     tile_size,
                                     (220, 220, 220, int(alpha * 0.7))
                                 )
+                            elif cond == "snow":
+                                arcade.draw_lbwh_rectangle_filled(
+                                    px - tile_size / 2,
+                                    py - tile_size / 2,
+                                    tile_size,
+                                    tile_size,
+                                    (200, 220, 255, int(alpha * 0.3))
+                                )
                             else:
                                 arcade.draw_lbwh_rectangle_filled(
                                     px - tile_size / 2,
@@ -126,9 +179,14 @@ class WeatherRenderer:
                                     (0, 0, 0, alpha)
                                 )
 
+        # lluvia
         if self.drops:
             for d in self.drops:
                 arcade.draw_line(
                     d.x, d.y, d.x + 1.5, d.y + d.length, arcade.color.AZURE, 1
                 )
 
+        # nieve
+        if self.snowflakes:
+            for f in self.snowflakes:
+                arcade.draw_circle_filled(f.x, f.y, f.size, (180, 220, 255))

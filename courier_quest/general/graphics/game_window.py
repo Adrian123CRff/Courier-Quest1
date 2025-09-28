@@ -37,8 +37,9 @@ class MapPlayerView(View):
             14
         )
 
-        self.weather_markov = WeatherMarkov(api=ApiClient(), seed=123)
+        self.weather_markov = WeatherMarkov(api=ApiClient()) #quitamos seed=123 para que sea aleatorio
         self.weather_renderer = WeatherRenderer(self)
+
 
         self.weather_text: Text = Text(
             "Clima: clear (?)",

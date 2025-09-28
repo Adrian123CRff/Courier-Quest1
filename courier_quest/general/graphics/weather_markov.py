@@ -15,10 +15,10 @@ def lerp(a: float, b: float, t: float) -> float:
 
 class WeatherMarkov:
     DEFAULT_CONDITIONS = [
-        "clear", "clouds", "rain_light", "rain", "storm", "fog", "wind", "heat", "cold"
+        "clear", "clouds", "rain_light", "rain", "storm", "fog", "wind", "heat", "cold", "snow"
     ]
     DEFAULT_BASE_MULTIPLIER = {
-        "clear": 1.00,
+        "clear": 0.99, #ver si esto hay que ajustarlo a 1.00 o lo dejamos con valor actual. OJO
         "clouds": 0.98,
         "rain_light": 0.92,
         "rain": 0.85,
@@ -27,6 +27,7 @@ class WeatherMarkov:
         "wind": 0.95,
         "heat": 0.90,
         "cold": 0.92,
+        "snow": 0.88
     }
 
     def __init__(
@@ -38,7 +39,7 @@ class WeatherMarkov:
         max_duration: int = 60,
         transition_smooth_seconds: float = 3.0,
         enable_history: bool = True,
-        debug: bool = False,   # 👈 nuevo parámetro
+        debug: bool = False,   #  nuevo parámetro
     ):
         self.rng = random.Random(seed)
 
@@ -70,7 +71,9 @@ class WeatherMarkov:
             self.transition_matrix = self._default_transition_matrix()
 
         # estado inicial
-        self.current_condition: str = "clear"
+        initial_choices = list(self.DEFAULT_CONDITIONS)
+        self.current_condition: str = self.rng.choice(self.DEFAULT_CONDITIONS)
+
         self.current_intensity: float = round(self.rng.uniform(0.25, 1.0), 3)
         self.current_multiplier: float = self.base_multiplier.get(
             self.current_condition, 1.0
@@ -97,26 +100,27 @@ class WeatherMarkov:
         self._subs: List[Callable[[Dict], None]] = []
 
     def _default_transition_matrix(self) -> Dict[str, Dict[str, float]]:
+        """
+        Genera una matriz de transición más aleatoria y no lineal.
+        Cada condición tiene probabilidad de quedarse igual (~0.35)
+        y el resto se reparte entre varios estados de forma balanceada.
+        """
         m = {}
-        for s in self.DEFAULT_CONDITIONS:
-            row = {t: 0.0 for t in self.DEFAULT_CONDITIONS}
-            row[s] = 0.5
-            if s == "clear":
-                row["clouds"] += 0.3
-                row["wind"] += 0.1
-            elif s == "clouds":
-                row["clouds"] += 0.2
-                row["rain_light"] += 0.2
-                row["clear"] += 0.2
-            elif s in ("rain", "rain_light"):
-                row["rain"] += 0.25
-                row["storm"] += 0.15
-                row["clouds"] += 0.2
-            elif s == "storm":
-                row["rain"] += 0.4
-                row["clouds"] += 0.3
-            else:
-                row[s] += 0.3
+        all_states = self.DEFAULT_CONDITIONS
+
+        for s in all_states:
+            # Inicializar todas las transiciones con 0
+            row = {t: 0.0 for t in all_states}
+
+            # 35% de probabilidad de quedarse en el mismo estado
+            row[s] = 0.35
+
+            # El 65% restante se reparte entre los demás estados
+            share = 0.65 / (len(all_states) - 1)
+            for t in all_states:
+                if t != s:
+                    row[t] = share
+
             m[s] = row
         return m
 
