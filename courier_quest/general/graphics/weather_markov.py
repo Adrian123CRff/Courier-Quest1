@@ -13,7 +13,6 @@ from typing import Dict, Optional, Callable, List, Any, Tuple
 def lerp(a: float, b: float, t: float) -> float:
     return a + (b - a) * t
 
-
 class WeatherMarkov:
     DEFAULT_CONDITIONS = [
         "clear", "clouds", "rain_light", "rain", "storm", "fog", "wind", "heat", "cold"
@@ -43,7 +42,6 @@ class WeatherMarkov:
     ):
         self.rng = random.Random(seed)
 
-        # ✅ modo debug: ráfagas más rápidas (3–5 seg)
         if debug:
             self.min_duration = 3
             self.max_duration = 5

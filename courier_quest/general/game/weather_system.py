@@ -1,4 +1,4 @@
-import random
+"""import random
 
 class WeatherSystem:
     def __init__(self):
@@ -8,6 +8,7 @@ class WeatherSystem:
             "clear": {"clear": 0.6, "clouds": 0.3, "rain": 0.1},
             "clouds": {"clear": 0.3, "clouds": 0.5, "rain": 0.2},
             "rain": {"clear": 0.2, "clouds": 0.4, "rain": 0.4}
+
         }
         self.weather_duration = 0
         self.current_duration = 0
@@ -25,7 +26,7 @@ class WeatherSystem:
     def update(self, delta_time):
         self.current_duration += delta_time
         if self.current_duration >= self.weather_duration:
-            self.next_weather()
+            self.next_weather()|
 
     def next_weather(self):
         # Implementar transición de clima con cadena de Markov
@@ -43,4 +44,4 @@ class WeatherSystem:
             "heat": 0.90,
             "cold": 0.92
         }
-        return multipliers.get(self.current_weather, 1.0)
+        return multipliers.get(self.current_weather, 1.0)"""

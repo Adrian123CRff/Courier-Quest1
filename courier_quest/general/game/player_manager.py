@@ -22,7 +22,6 @@ class Player:
 
         self.moving: bool = False
 
-        # === Sprite + SpriteList (Arcade 3.3.2) ===
         self.texture: arcade.Texture = arcade.load_texture(RESOURCE_PATH)
         self.sprite = arcade.Sprite(
             self.texture,

@@ -1,3 +1,4 @@
+
 import arcade
 import arcade.gui
 
@@ -55,6 +56,16 @@ class MainMenuView(arcade.View):
         anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
         self.manager.add(anchor)
 
+        # --- TEXTO: Courier Quest ---
+        self.title_text = arcade.Text(
+            "Courier Quest",
+            SCREEN_WIDTH / 2,
+            SCREEN_HEIGHT - 100,
+            arcade.color.WHITE,
+            font_size=36,
+            anchor_x="center"
+        )
+
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
 
@@ -67,8 +78,7 @@ class MainMenuView(arcade.View):
     def on_draw(self):
         self.clear()
         self.manager.draw()
-        arcade.draw_text("Courier Quest", SCREEN_WIDTH/2, SCREEN_HEIGHT-100,
-                         arcade.color.WHITE, font_size=36, anchor_x="center")
+        self.title_text.draw()
 
 
 # ========================
@@ -83,11 +93,9 @@ class MainMenuView(arcade.View):
             #layout vertical
             v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=20)
 
-
             # Botón Nueva Partida
             new_game_button = arcade.gui.UIFlatButton(text="Nueva Partida", width=200)
             v_box.add(new_game_button)
-
 
             @new_game_button.event("on_click")
             def on_click_new(event):
@@ -129,25 +137,31 @@ class MainMenuView(arcade.View):
             anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
             self.manager.add(anchor)
 
-    def on_show_view(self):
-        self.manager.enable()
+            # --- TEXTO: Menú de Juego ---
+            self.menu_text = arcade.Text(
+                "Menú de Juego",
+                SCREEN_WIDTH / 2,
+                SCREEN_HEIGHT - 100,
+                arcade.color.WHITE,
+                font_size=30,
+                anchor_x="center"
+            )
 
-    def on_hide_view(self):
-        self.manager.disable()
+        def on_show_view(self):
+            self.manager.enable()
 
-    def on_show(self):
-        arcade.set_background_color(arcade.color.DARK_SLATE_GRAY)
+        def on_hide_view(self):
+            self.manager.disable()
 
-    def on_draw(self):
-        self.clear()
-        self.manager.draw()
-        arcade.draw_text("Menú de Juego", SCREEN_WIDTH/2, SCREEN_HEIGHT-100,
-                         arcade.color.WHITE, font_size=30, anchor_x="center")
+        def on_show(self):
+            arcade.set_background_color(arcade.color.DARK_SLATE_GRAY)
+
+        def on_draw(self):
+            self.clear()
+            self.manager.draw()
+            self.menu_text.draw()
 
 
-# ========================
-# Vista: Juego en curso
-# ========================
 # ========================
 # Vista: Juego en curso (con clima dinámico)
 # ========================
@@ -175,6 +189,19 @@ class GameView(arcade.View):
         self.weather_manager.apply_to_game_state(self.state)
         self.weather_renderer = WeatherRenderer(self)
 
+        # --- TEXTOS HUD ---
+        self.weather_text = arcade.Text(
+            "", 10, 10, arcade.color.WHITE, 14
+        )
+        self.status_text = arcade.Text(
+            "Partida en curso",
+            self.window.width / 2,
+            self.window.height - 40,
+            arcade.color.WHITE,
+            20,
+            anchor_x="center"
+        )
+
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_GREEN)
 
@@ -186,6 +213,9 @@ class GameView(arcade.View):
         self.tile_size = max(4, min(width // w, height // h))
         # Ajustar overlay de clima
         self.weather_renderer.on_resize(width, height)
+        # Actualizar posición del texto de estado
+        self.status_text.x = width / 2
+        self.status_text.y = height - 40
 
     def on_update(self, dt: float):
         # --- Actualizar clima con Markov ---
@@ -204,11 +234,9 @@ class GameView(arcade.View):
         weather = self.state.get("weather_state", {})
         cond = weather.get("summary", "Desconocido")
         temp = weather.get("temperature", "--")
-        arcade.draw_text(f"Clima: {cond} {temp}°C",
-                         10, 10, arcade.color.WHITE, 14)
-        arcade.draw_text("Partida en curso",
-                         self.window.width / 2, self.window.height - 40,
-                         arcade.color.WHITE, 20, anchor_x="center")
+        self.weather_text.text = f"Clima: {cond} {temp}°C"
+        self.weather_text.draw()
+        self.status_text.draw()
 
 
 # ========================
