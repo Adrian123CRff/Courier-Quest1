@@ -5,22 +5,27 @@ from graphics.map_manager import GameMap
 class GameView(arcade.View):
     def __init__(self, state):
         super().__init__()
-        # Acepta tanto dict como objetos con atributo city_map
-        self.state = state or {}
-        if isinstance(state, dict):
-            city_map = state.get("city_map", {})
-        else:
-            city_map = getattr(state, "city_map", {})
-        self.game_map = GameMap(city_map)
+        # Ahora asumimos que siempre es un GameState válido
+        self.state = state
+        self.game_map = GameMap(self.state.city_map)
 
-    def on_show(self):
+        # Texto preparado (Arcade 3.3.2)
+        self.map_title = arcade.Text(
+            f"Mapa: {getattr(self.game_map, 'name', 'Mapa')}",
+            start_x=10,
+            start_y=580,
+            color=arcade.color.WHITE,
+            font_size=16,
+        )
+
+    def on_show_view(self):
         arcade.set_background_color(arcade.color.BLACK)
 
     def on_draw(self):
         self.clear()
 
         # Info del mapa
-        name = getattr(self.game_map, "name", "Mapa")
-        arcade.draw_text(f"Mapa: {name}", 10, 580, arcade.color.WHITE,16)
+        self.map_title.draw()
+
         # Render de prueba (colores sólidos)
         self.game_map.draw_debug(tile_size=20)

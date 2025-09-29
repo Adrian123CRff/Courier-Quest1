@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from run_api.api_client import ApiClient
 
 WIDTH = 800
-HEIGHT = 600
+HEIGHT = 800
 TITLE = "Courier Quest"
 SPEED = 5
 
