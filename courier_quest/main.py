@@ -1,6 +1,6 @@
 # main.py
 import arcade
-from graphics.ui_view_gui import MainMenuView
+from general.graphics.ui_view_gui import MainMenuView
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 800

@@ -3,7 +3,7 @@ import arcade
 import os
 from typing import Tuple
 
-PLAYER_SPEED_PIXELS_PER_SEC = 120
+PLAYER_SPEED_PIXELS_PER_SEC = 150
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 RESOURCE_PATH = os.path.join(BASE_PATH, "..", "..", "resources", "icons", "ciclista.png")
