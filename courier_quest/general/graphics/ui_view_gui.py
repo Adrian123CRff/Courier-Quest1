@@ -2,7 +2,7 @@
 import arcade
 import arcade.gui
 
-from run_api.api_client import ApiClient
+from run_api.api_client import APIDataManager
 from run_api.state_initializer import init_game_state
 from run_api.save_manager import save_game, load_game, list_saves
 
@@ -84,7 +84,7 @@ class GameMenuView(arcade.View):
         @new_game_button.event("on_click")
         def on_click_new(event):
             try:
-                api = ApiClient()
+                api = APIDataManager()
                 state = init_game_state(api)
                 save_game(state, "slot1.sav")
                 self.window.show_view(MapPlayerView(state))

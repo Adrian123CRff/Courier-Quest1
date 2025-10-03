@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from .models import GameState
-from .api_client import ApiClient
+from .api_client import APIDataManager
 
 BASE_DIR = Path(__file__).resolve().parent
 CACHE_PATH = BASE_DIR / "api_cache" / "city_map.json"
@@ -47,14 +47,14 @@ def _fallback_tiles_from_cache(city_map: dict) -> dict:
 
     return city_map or {}
 
-def init_game_state(api: Optional[ApiClient] = None, force_update: bool = False) -> GameState:
+def init_game_state(api: Optional[APIDataManager] = None, force_update: bool = False) -> GameState:
     """
-    Inicializa y retorna un GameState usando ApiClient (o creando uno).
+    Inicializa y retorna un GameState usando ApiDataManager (o creando uno).
     - Si force_update=True intentará forzar la obtención de datos frescos desde la API.
     - Si la API no trae 'tiles', usará la cache de api_cache/city_map.json si existe.
     """
     if api is None:
-        api = ApiClient()
+        api = APIDataManager()
 
     state = GameState()
 

@@ -2,7 +2,7 @@
 import time
 import arcade
 from arcade import Window, View, Text
-from run_api.api_client import ApiClient
+from run_api.api_client import APIDataManager
 from run_api.state_initializer import init_game_state
 from .map_manager import GameMap, FLIP_Y
 from game.player_manager import Player
@@ -74,7 +74,7 @@ class MapPlayerView(View):
         self.weather_text = Text("", 10, SCREEN_SIZE - 40, arcade.color.LIGHT_BLUE, 14)
         self.stamina_text = Text("", 0, 0, arcade.color.WHITE, 12)
 
-        self.weather_markov = WeatherMarkov(api=ApiClient())
+        self.weather_markov = WeatherMarkov(api=APIDataManager())
         self.weather_renderer = WeatherRenderer(self)
 
         self._last_input_time = 0.0
