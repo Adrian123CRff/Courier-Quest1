@@ -1,124 +1,108 @@
-# player_stats.py
+# game/player_stats.py
 import time
 from typing import Dict, Any
 
 
 class PlayerStats:
     """
-    Gestiona las estadísticas del jugador: resistencia y reputación.
+    Gestión de stamina y reputación.
+
+    - Consumo por celda: 0.5 por defecto (consume_stamina base_cost=0.5).
+    - Recuperación: 1 punto cada RECOVER_INTERVAL segundos (RECOVER_INTERVAL = 1.0),
+      sólo si el jugador está quieto (is_moving == False) y no hay input activo.
+    - Movimiento bloqueado únicamente si stamina == 0.
     """
 
-    # Estados de resistencia
     STAMINA_STATES = {
         "normal": {"min": 30, "max": 100, "multiplier": 1.0},
         "tired": {"min": 10, "max": 30, "multiplier": 0.8},
         "exhausted": {"min": 0, "max": 10, "multiplier": 0.0}
     }
 
-    # Umbrales de reputación
     REPUTATION_THRESHOLDS = {
-        "excellent": 90,  # +5% pago
-        "good": 85,  # mitad de penalización en primera tardanza
-        "defeat": 20  # derrota inmediata si es menor
+        "excellent": 90,
+        "good": 85,
+        "defeat": 20
     }
 
     def __init__(self):
-        # Resistencia
-        self.stamina = 100.0
-        self.stamina_recovery_rate = 5.0  # puntos por segundo en reposo
-        self.stamina_recovery_rate_rest_point = 10.0  # puntos por segundo en punto de descanso
-        self.last_rest_time = time.time()
+        self.stamina: float = 100.0
+
+        # Recuperación: 1 punto cada RECOVER_INTERVAL segundos cuando quieto y sin input
+        self.RECOVER_INTERVAL: float = 1.0
+        self._idle_recover_accum: float = 0.0
+
+        # flags
         self.is_resting = False
         self.is_at_rest_point = False
+        self.last_rest_time = time.time()
 
-        # Reputación
-        self.reputation = 70
+        # reputación
+        self.reputation: int = 70
         self.consecutive_on_time_deliveries = 0
         self.first_late_delivery_of_day = True
 
-    def update(self, delta_time: float, is_moving: bool, is_at_rest_point: bool = False,
-               inventory_weight: float = 0.0, current_weather: str = "clear"):
+    def update(self,
+               delta_time: float,
+               is_moving: bool,
+               is_at_rest_point: bool = False,
+               inventory_weight: float = 0.0,
+               current_weather: str = "clear",
+               input_active: bool = False):
         """
-        Actualiza las estadísticas del jugador basado en el tiempo transcurrido.
+        Actualiza stamina:
+        - Si is_moving: no recupera (consumo por celda se hace explícitamente al completar la celda).
+        - Si no se mueve y input_active == False: acumula tiempo y recupera 1 punto por RECOVER_INTERVAL.
+        - Si hay input_active (aunque no se mueva), NO recupera.
         """
         self.is_at_rest_point = is_at_rest_point
 
-        # Actualizar resistencia
         if is_moving:
-            # Consumo base por celda
-            stamina_consumption_base = 0.5
-
-            # Extra por peso del inventario
-            weight_extra = 0.0
-            if inventory_weight > 3.0:
-                weight_extra = 0.2 * (inventory_weight - 3.0)
-
-            # Extra por clima adverso
-            weather_extra = 0.0
-            if current_weather in ["rain", "wind"]:
-                weather_extra = 0.1
-            elif current_weather == "storm":
-                weather_extra = 0.3
-            elif current_weather == "heat":
-                weather_extra = 0.2
-
-            # Consumo total
-            stamina_consumption = (stamina_consumption_base + weight_extra + weather_extra) * delta_time * 10
-            self.stamina = max(0, self.stamina - stamina_consumption)
+            # mientras se mueve no recupera y resetea acumulador
+            self._idle_recover_accum = 0.0
             self.is_resting = False
+            return
+
+        # quieto:
+        if not input_active:
+            self._idle_recover_accum += delta_time
+            while self._idle_recover_accum >= self.RECOVER_INTERVAL:
+                self._idle_recover_accum -= self.RECOVER_INTERVAL
+                self.stamina = min(100.0, self.stamina + 1.0)
         else:
-            # Recuperar resistencia en reposo
-            if self.is_at_rest_point:
-                recovery_rate = self.stamina_recovery_rate_rest_point
-            else:
-                recovery_rate = self.stamina_recovery_rate
+            # actividad de entrada evita recuperación
+            self._idle_recover_accum = 0.0
 
-            self.stamina = min(100, self.stamina + recovery_rate * delta_time)
-            self.is_resting = True
-
-        # Actualizar tiempo de descanso
+        self.is_resting = True
         if self.is_resting:
             self.last_rest_time = time.time()
 
-    def get_stamina_state(self):
-        """Retorna el estado actual de resistencia del jugador."""
+    def get_stamina_state(self) -> str:
         for state, values in self.STAMINA_STATES.items():
             if values["min"] <= self.stamina <= values["max"]:
                 return state
         return "normal"
 
-    def get_speed_multiplier(self):
-        """Retorna el multiplicador de velocidad basado en la resistencia."""
+    def get_speed_multiplier(self) -> float:
         state = self.get_stamina_state()
         return self.STAMINA_STATES[state]["multiplier"]
 
     def update_reputation(self, event_type: str, data: Dict[str, Any] = None) -> int:
-        """
-        Actualiza la reputación basado en eventos del juego.
-        """
         data = data or {}
         reputation_change = 0
-
         if event_type == "delivery_on_time":
             reputation_change = 3
             self.consecutive_on_time_deliveries += 1
-
-            # Bonificación por racha de 3 entregas sin penalización
             if self.consecutive_on_time_deliveries >= 3:
                 reputation_change += 2
                 self.consecutive_on_time_deliveries = 0
-
         elif event_type == "delivery_early":
-            # Entrega temprana (≥20% antes)
             early_percent = data.get("early_percent", 20)
             if early_percent >= 20:
                 reputation_change = 5
                 self.consecutive_on_time_deliveries += 1
-
         elif event_type == "delivery_late":
-            # Tarde ≤30s: -2; 31–120s: -5; >120s: -10
             seconds_late = data.get("seconds_late", 0)
-
             if seconds_late <= 30:
                 reputation_change = -2
             elif seconds_late <= 120:
@@ -126,49 +110,59 @@ class PlayerStats:
             else:
                 reputation_change = -10
 
-            # Primera tardanza del día a mitad de penalización si reputación ≥85
             if self.first_late_delivery_of_day and self.reputation >= 85:
                 reputation_change = reputation_change // 2
                 self.first_late_delivery_of_day = False
-
             self.consecutive_on_time_deliveries = 0
-
         elif event_type == "cancel_order":
             reputation_change = -4
             self.consecutive_on_time_deliveries = 0
-
         elif event_type == "lose_package":
             reputation_change = -6
             self.consecutive_on_time_deliveries = 0
 
-        # Aplicar cambio de reputación
         self.reputation += reputation_change
         self.reputation = max(0, min(100, self.reputation))
-
         return reputation_change
 
     def get_payment_multiplier(self) -> float:
-        """Retorna el multiplicador de pago basado en la reputación."""
         return 1.05 if self.reputation >= self.REPUTATION_THRESHOLDS["excellent"] else 1.0
 
     def is_game_over(self) -> bool:
-        """Verifica si el juego debe terminar por baja reputación."""
         return self.reputation < self.REPUTATION_THRESHOLDS["defeat"]
 
-    def consume_stamina(self, base_cost: float, weight: float, weather_penalty: float) -> bool:
+    def consume_stamina(self,
+                        base_cost: float = 0.5,
+                        weight: float = 0.0,
+                        current_weather: str = "clear") -> bool:
         """
-        Consume resistencia al moverse por una celda.
+        Consume stamina cuando se completa una celda:
+        - base_cost: por defecto 0.5 (lo pedido).
+        - weight: peso del inventario (añade penalización si > 3).
+        - current_weather: puede añadir penalización por clima.
+        Devuelve True si antes de consumir había > 0 stamina (es decir, el movimiento era permitido).
+        Nota: si stamina queda en 0, el jugador ya no podrá iniciar futuros movimientos.
         """
-        # Verificar si puede moverse
-        if self.get_stamina_state() == "exhausted":
+        # Si ya está a 0 -> no puede moverse / no consumir más
+        if self.stamina <= 0.0:
             return False
 
-        # Calcular costo total
-        weight_penalty = max(0, 0.2 * (weight - 3)) if weight > 3 else 0
+        weight_penalty = 0.0
+        if weight > 3.0:
+            weight_penalty = 0.2 * (weight - 3.0)
+
+        weather_penalty = 0.0
+        if current_weather in ("rain", "wind"):
+            weather_penalty = 0.1
+        elif current_weather == "storm":
+            weather_penalty = 0.3
+        elif current_weather == "heat":
+            weather_penalty = 0.2
+        elif current_weather == "snow":
+            weather_penalty = 0.12
+
         total_cost = base_cost + weight_penalty + weather_penalty
 
-        # Consumir resistencia
-        self.stamina -= total_cost
-        self.stamina = max(0, self.stamina)
-
-        return self.stamina > 0
+        # restar (no bajar de 0)
+        self.stamina = max(0.0, self.stamina - total_cost)
+        return True
