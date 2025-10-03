@@ -1,419 +1,279 @@
 import requests
-import time
-import datetime
-from pathlib import Path
 import json
 import os
-import logging
-from typing import Optional, Any, Dict, Union, List, Tuple
-import tempfile
-import shutil
+import hashlib
+from datetime import datetime
+from typing import Dict, Any, Optional
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger('ApiClient')
-
-
-class ApiClient:
-    """Cliente HTTP con caché en disco, fallback a /data y escritura atómica.
-
-    Características principales:
-    - requests.Session() para reutilizar conexiones
-    - caché principal (endpoint_base.json) y archivos timestamped (endpoint_base_YYYYmmdd_HHMMSS.json)
-    - escritura atómica de caché
-    - fallback a archivos locales en /data según mapping
-    - TTL y logging de caché "stale"
-    - manejo de params en nombres de caché
+class APIDataManager:
+    """
+    Módulo especializado exclusivamente en obtener y verificar datos del API
     """
 
-    def __init__(
-        self,
-        base_url: str = "https://tigerds-api.kindflower-ccaf48b6.eastus.azurecontainerapps.io",
-        cache_dir: str = "api_cache",
-        data_dir: str = "data",
-        ttl: int = 3600,
-        connection_retry_interval: int = 60,
-        health_endpoint: str = "city/map",
-    ):
-        self.base_url = base_url.rstrip("/")
-        self.cache_dir = Path(cache_dir)
-        self.data_dir = Path(data_dir)
-        self.ttl = ttl
-        self.offline_mode = False
-        self.last_connection_attempt = 0
-        self.connection_retry_interval = connection_retry_interval
-        self.health_endpoint = health_endpoint
+    def __init__(self):
+        self.base_url = "https://tigerds-api.kindflower-ccaf48b6.eastus.azurecontainerapps.io"
+        self.cache_dir = "api_cache"
+        self.data_dir = "data"
 
-        # Session para reaprovechar conexiones
-        self.session = requests.Session()
+        # Crear directorios necesarios
+        os.makedirs(self.cache_dir, exist_ok=True)
+        os.makedirs(self.data_dir, exist_ok=True)
 
-        # Asegurar directorios
-        self.cache_dir.mkdir(exist_ok=True, parents=True)
-        self.data_dir.mkdir(exist_ok=True, parents=True)
+        print("✅ Módulo API Data Fetcher inicializado")
 
-        # Mapeo endpoint -> archivo local en /data
-        self.endpoint_to_local = {
-            "city/map": "ciudad.json",
-            "city/jobs": "pedidos.json",
-            "city/weather": "weather.json",
-        }
+    def _get_data_hash(self, data: Any) -> str:
+        """Calcular hash MD5 para detectar cambios"""
+        return hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
-        # Intento inicial no bloqueante
+    def _fetch_from_api(self, endpoint: str) -> Optional[Any]:
+        """Obtener datos directamente del API"""
         try:
-            self._check_connection()
-        except Exception:
-            logger.debug("Inicialización: chequeo de conexión falló silenciosamente.")
+            url = f"{self.base_url}{endpoint}"
+            print(f"🌐 Conectando a: {url}")
 
-    # ----------------------------
-    # Helpers
-    # ----------------------------
-    def _check_connection(self) -> bool:
-        """Comprueba si el endpoint de health responde. Evita reintentos frecuentes.
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
 
-        Retorna True si hay conexión y False si no.
-        """
-        current_time = time.time()
-        if (
-            current_time - self.last_connection_attempt < self.connection_retry_interval
-            and self.offline_mode
-        ):
-            logger.debug("Chequeo de conexión: salto por retry interval (estamos offline).")
-            return False
+            data = response.json()
+            print(f"✅ Datos obtenidos (Status: {response.status_code})")
+            return data
 
-        self.last_connection_attempt = current_time
-        try:
-            url = f"{self.base_url}/{self.health_endpoint.lstrip('/')}"
-            resp = self.session.get(url, timeout=3)
-            self.offline_mode = not resp.ok
-            if not self.offline_mode:
-                logger.info("Conexión al API establecida. Modo online activado.")
-            else:
-                logger.warning("API respondió con status != 200. Modo offline activado.")
-            return not self.offline_mode
-        except requests.RequestException as e:
-            self.offline_mode = True
-            logger.warning(f"No se pudo conectar al API ({e}). Modo offline activado.")
-            return False
-
-    def _params_to_str(self, params: Optional[dict]) -> str:
-        if not params:
-            return ""
-        # Normalizar a string ordenado para consistencia
-        return "_".join([f"{k}_{v}" for k, v in sorted(params.items())])
-
-    def _cache_path(self, endpoint: str, params: Optional[dict] = None) -> Path:
-        cache_name = endpoint.replace("/", "_")
-        param_str = self._params_to_str(params)
-        if param_str:
-            cache_name = f"{cache_name}_{param_str}"
-        return self.cache_dir / f"{cache_name}.json"
-
-    def _get_latest_cache(self, endpoint: str, params: Optional[dict] = None) -> Tuple[Optional[Path], Optional[float]]:
-        base_name = endpoint.replace("/", "_")
-        param_str = self._params_to_str(params)
-        if param_str:
-            base_name = f"{base_name}_{param_str}"
-
-        pattern = f"{base_name}_*.json"
-        cache_files = list(self.cache_dir.glob(pattern))
-
-        if not cache_files:
-            main_cache = self._cache_path(endpoint, params)
-            if main_cache.exists():
-                return main_cache, main_cache.stat().st_mtime
-            return None, None
-
-        latest_file = max(cache_files, key=lambda p: p.stat().st_mtime)
-        return latest_file, latest_file.stat().st_mtime
-
-    def _load_json_file(self, path: Path) -> Optional[Union[dict, list]]:
-        if not path.exists():
-            logger.debug(f"Archivo no encontrado: {path}")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Error de conexión: {e}")
             return None
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
         except json.JSONDecodeError as e:
-            logger.error(f"Error al decodificar JSON en {path}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error al leer archivo {path}: {e}")
+            print(f"❌ Error decodificando JSON: {e}")
             return None
 
-    def _atomic_save_json(self, path: Path, data: Any) -> bool:
-        """Escritura atómica del JSON en disco (escribe archivo temporal y lo mueve)."""
-        try:
-            path.parent.mkdir(exist_ok=True, parents=True)
-            with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", dir=str(path.parent)) as tmp:
-                json.dump(data, tmp, indent=2, ensure_ascii=False)
-                tmp_name = tmp.name
-            shutil.move(tmp_name, str(path))
-            logger.info(f"Datos guardados en {path}")
-            return True
-        except Exception as e:
-            logger.error(f"Error al guardar en {path}: {e}")
+    def _save_data(self, data_type: str, data: Any):
+        """Guardar datos en cache y como última versión"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Guardar en cache con timestamp
+        cache_file = os.path.join(self.cache_dir, f"{timestamp}_{data_type}.json")
+        with open(cache_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        # Guardar última versión
+        data_file = os.path.join(self.data_dir, f"{data_type}.json")
+        with open(data_file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        print(f"💾 {data_type} guardado")
+
+    def _load_previous_data(self, data_type: str) -> Optional[Any]:
+        """Cargar datos anteriores"""
+        data_file = os.path.join(self.data_dir, f"{data_type}.json")
+        if os.path.exists(data_file):
             try:
-                if 'tmp_name' in locals() and os.path.exists(tmp_name):
-                    os.remove(tmp_name)
-            except Exception:
-                pass
-            return False
+                with open(data_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"❌ Error cargando {data_type}: {e}")
+        return None
 
-    def _is_cache_valid(self, path: Path) -> bool:
-        if not path.exists():
-            return False
-        age = time.time() - path.stat().st_mtime
-        return age <= self.ttl
-
-    # ----------------------------
-    # Fetch principal
-    # ----------------------------
-    def fetch_data(self, endpoint: str, params: dict = None) -> Optional[Union[dict, list]]:
-        """Estrategia de fetch:
-
-        1. Intentar API si hay conexión
-        2. Si API falla o no devuelve datos, usar el cache más reciente (incluir archivos timestamped)
-        3. Si no hay cache, usar /data local según mapping
-        4. Si nada disponible, devolver default
+    def check_and_update_data(self, endpoint: str, data_type: str) -> Dict[str, Any]:
         """
-        has_connection = self._check_connection()
+        Verificar si hay cambios en el API y actualizar si es necesario
 
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        cache_file = self._cache_path(endpoint, params)
+        Returns:
+            Dict con:
+            - data: los datos actuales
+            - source: fuente de los datos ('api', 'cache', 'default')
+            - changed: si hubo cambios
+            - previous_hash: hash anterior (si existía)
+            - current_hash: hash actual
+        """
+        print(f"\n🔍 Verificando {data_type}...")
 
-        base_name = endpoint.replace("/", "_")
-        param_str = self._params_to_str(params)
-        if param_str:
-            base_name = f"{base_name}_{param_str}"
-        timestamped_cache_file = self.cache_dir / f"{base_name}_{timestamp}.json"
-
-        local_name = self.endpoint_to_local.get(endpoint)
-        local_file = (self.data_dir / local_name) if local_name else None
-
-        api_data = None
-        if has_connection:
-            try:
-                url = f"{self.base_url}/{endpoint.lstrip('/')}"
-                logger.info(f"Intentando actualizar datos desde API: {url}")
-                resp = self.session.get(url, params=params, timeout=6)
-                resp.raise_for_status()
-                api_data = resp.json()
-                if isinstance(api_data, dict) and "data" in api_data:
-                    api_data = api_data["data"]
-
-                # Guardar en caché timestamped y principal (escritura atómica)
-                self._atomic_save_json(timestamped_cache_file, api_data)
-                self._atomic_save_json(cache_file, api_data)
-                logger.info("Datos actualizados desde API y guardados en caché.")
-            except requests.RequestException as e:
-                logger.warning(f"API no disponible al intentar fetch: {e}")
-                self.offline_mode = True
-                has_connection = False
+        # 1. Obtener datos del API
+        api_data = self._fetch_from_api(endpoint)
 
         if api_data is not None:
-            return api_data
+            current_hash = self._get_data_hash(api_data)
 
-        # Usar cache más reciente
-        latest_cache, cache_time = self._get_latest_cache(endpoint, params)
-        if latest_cache:
-            cached_data = self._load_json_file(latest_cache)
-            if cached_data is not None:
-                age = time.time() - cache_time
-                valid = self._is_cache_valid(latest_cache)
-                status = "CACHÉ" if valid else "CACHÉ_STALE"
-                logger.info(f"[{status}] {endpoint} cargado desde caché (edad: {int(age)}s)")
-                return cached_data
+            # 2. Cargar datos anteriores para comparar
+            previous_data = self._load_previous_data(data_type)
 
-        # Fallback local
-        if local_file and local_file.exists():
-            local_data = self._load_json_file(local_file)
-            if local_data is not None:
-                logger.info(f"[LOCAL] {endpoint} cargado desde /data")
-                # actualizar cache principal
-                self._atomic_save_json(cache_file, local_data)
-                return local_data
+            if previous_data is not None:
+                previous_hash = self._get_data_hash(previous_data)
+                has_changed = current_hash != previous_hash
 
-        logger.error(f"[ERROR] No hay datos disponibles para {endpoint}")
-        return self._get_default_data(endpoint)
+                if has_changed:
+                    print(f"🔄 Cambios detectados en {data_type}")
+                    print(f"   Hash anterior: {previous_hash}")
+                    print(f"   Hash nuevo:    {current_hash}")
 
-    # ----------------------------
-    # Wrappers específicos
-    # ----------------------------
-    def get_city_map(self) -> Dict[str, Any]:
-        try:
-            data = self.fetch_data("city/map")
-            if not data or not isinstance(data, dict):
-                return self._get_default_map()
+                    # Guardar nuevos datos
+                    self._save_data(data_type, api_data)
 
-            return {
-                "name": data.get("name", "TigerCity"),
-                "width": data.get("width", 20),
-                "height": data.get("height", 15),
-                "tiles": data.get("tiles", []),
-                "legend": data.get("legend", {}),
-                "goal": data.get("goal", 3000),
-                "version": data.get("version", "1.0"),
-            }
-        except Exception as e:
-            logger.error(f"Error al procesar el mapa: {e}")
-            return self._get_default_map()
-
-    def _get_default_map(self) -> Dict[str, Any]:
-        return {
-            "name": "TigerCity",
-            "width": 20,
-            "height": 15,
-            # Representación simple: lista 2D de tiles (ejemplo)
-            "tiles": [["C" for _ in range(20)] for _ in range(15)],
-            "legend": {
-                "C": {"name": "calle", "surface_weight": 1.00},
-                "B": {"name": "edificio", "blocked": True},
-                "P": {"name": "parque", "surface_weight": 0.95},
-            },
-            "goal": 3000,
-            "version": "1.0",
-        }
-
-    def get_jobs(self) -> list:
-        try:
-            data = self.fetch_data("city/jobs")
-            if not data:
-                return []
-
-            if isinstance(data, dict) and "jobs" in data:
-                jobs = data["jobs"]
-            elif isinstance(data, list):
-                jobs = data
+                    return {
+                        "data": api_data,
+                        "source": "api",
+                        "changed": True,
+                        "previous_hash": previous_hash,
+                        "current_hash": current_hash
+                    }
+                else:
+                    print(f"✅ {data_type} sin cambios")
+                    return {
+                        "data": previous_data,
+                        "source": "cache",
+                        "changed": False,
+                        "previous_hash": previous_hash,
+                        "current_hash": current_hash
+                    }
             else:
-                logger.warning("Formato de pedidos inesperado")
-                return []
+                # No hay datos anteriores, guardar estos
+                print(f"📝 Primera vez obteniendo {data_type}")
+                self._save_data(data_type, api_data)
 
-            valid_jobs = []
-            for job in jobs:
-                if self._validate_job(job):
-                    valid_jobs.append(job)
+                return {
+                    "data": api_data,
+                    "source": "api",
+                    "changed": True,
+                    "previous_hash": None,
+                    "current_hash": current_hash
+                }
+        else:
+            # 3. Fallback a datos locales
+            print(f"📡 Usando datos locales para {data_type}")
+            local_data = self._load_previous_data(data_type)
 
-            if len(valid_jobs) < len(jobs):
-                logger.warning(f"Se descartaron {len(jobs) - len(valid_jobs)} pedidos inválidos")
+            if local_data is not None:
+                current_hash = self._get_data_hash(local_data)
+                return {
+                    "data": local_data,
+                    "source": "cache",
+                    "changed": False,
+                    "previous_hash": current_hash,
+                    "current_hash": current_hash
+                }
+            else:
+                # 4. Datos por defecto
+                print(f"⚠️ Usando datos por defecto para {data_type}")
+                default_data = self._get_default_data(data_type)
+                current_hash = self._get_data_hash(default_data)
 
-            return valid_jobs
-        except Exception as e:
-            logger.error(f"Error al procesar pedidos: {e}")
-            return []
+                return {
+                    "data": default_data,
+                    "source": "default",
+                    "changed": False,
+                    "previous_hash": None,
+                    "current_hash": current_hash
+                }
 
-    def _validate_job(self, job: Dict) -> bool:
-        required_fields = ["id", "pickup", "dropoff", "payout", "deadline", "weight"]
-        return all(field in job for field in required_fields)
+    def get_city_map(self) -> Dict[str, Any]:
+        """Obtener y verificar mapa de la ciudad"""
+        return self.check_and_update_data("/city/map", "city_map")
+
+    def get_jobs(self) -> Dict[str, Any]:
+        """Obtener y verificar pedidos"""
+        return self.check_and_update_data("/city/jobs", "jobs")
 
     def get_weather(self) -> Dict[str, Any]:
-        try:
-            data = self.fetch_data("city/weather")
-            if not data:
-                data = {}
+        """Obtener y verificar clima"""
+        return self.check_and_update_data("/city/weather", "weather")
 
-            bursts = data.get("bursts", []) if isinstance(data, dict) else []
-            current_burst = bursts[0] if bursts else {}
-            condition = current_burst.get("condition", "clear")
-            intensity = current_burst.get("intensity", 0.5)
-
-            translations = {
-                "clear": "Despejado",
-                "clouds": "Nublado",
-                "rain_light": "Lluvia ligera",
-                "rain": "Lluvia",
-                "storm": "Tormenta",
-                "fog": "Niebla",
-                "wind": "Viento",
-                "heat": "Calor",
-                "cold": "Frío",
-            }
-
-            speed_multipliers = {
-                "clear": 1.00,
-                "clouds": 0.98,
-                "rain_light": 0.90,
-                "rain": 0.85,
-                "storm": 0.75,
-                "fog": 0.88,
-                "wind": 0.92,
-                "heat": 0.90,
-                "cold": 0.92,
-            }
-
-            summary = translations.get(condition, condition)
-            temp_defaults = {
-                "clear": 25,
-                "clouds": 20,
-                "rain_light": 18,
-                "rain": 16,
-                "storm": 15,
-                "fog": 12,
-                "wind": 22,
-                "heat": 30,
-                "cold": 10,
-            }
-            temperature = temp_defaults.get(condition, 20)
-
-            return {
-                "condition": condition,
-                "summary": summary,
-                "temperature": temperature,
-                "intensity": intensity,
-                "speed_multiplier": speed_multipliers.get(condition, 1.0),
-                "bursts": bursts,
-                "city": data.get("city", "TigerCity") if isinstance(data, dict) else "TigerCity",
-                "date": data.get("date", "2025-09-01") if isinstance(data, dict) else "2025-09-01",
-            }
-        except Exception as e:
-            logger.error(f"Error al procesar clima: {e}")
-            return {
-                "condition": "clear",
-                "summary": "Despejado",
-                "temperature": 25,
-                "intensity": 0.5,
-                "speed_multiplier": 1.0,
-                "bursts": [],
-                "city": "TigerCity",
-                "date": "2025-09-01",
-            }
-
-    def _get_default_data(self, endpoint: str) -> Optional[Union[dict, list]]:
+    def _get_default_data(self, data_type: str) -> Any:
+        """Datos por defecto para cada tipo"""
         defaults = {
-            "city/map": self._get_default_map(),
-            "city/jobs": [],
-            "city/weather": {
+            "city_map": {
+                "version": "1.0",
+                "width": 20,
+                "height": 15,
+                "tiles": [],
+                "legend": {},
+                "goal": 3000
+            },
+            "jobs": [],
+            "weather": {
                 "city": "TigerCity",
                 "date": "2025-09-01",
-                "bursts": [{"duration_sec": 90, "condition": "clear", "intensity": 0.2}],
-            },
+                "bursts": [],
+                "meta": {"units": {"intensity": "0-1"}}
+            }
         }
-        return defaults.get(endpoint, None)
+        return defaults.get(data_type, {})
 
-    def get_connection_status(self) -> Dict[str, Any]:
+    def get_all_data(self) -> Dict[str, Any]:
+        """Obtener y verificar todos los datos"""
+        print("🚀 Obteniendo todos los datos del API...")
+
+        results = {
+            "city_map": self.get_city_map(),
+            "jobs": self.get_jobs(),
+            "weather": self.get_weather(),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # Resumen
+        print("\n📊 RESUMEN:")
+        for key, result in results.items():
+            if key != "timestamp":
+                print(f"   {key}: {result['source']} - Cambios: {result['changed']}")
+
+        return results
+
+    def force_update(self) -> Dict[str, Any]:
+        """Forzar actualización desde el API ignorando cambios"""
+        print("🔄 Forzando actualización completa...")
+
+        # Obtener datos frescos del API
+        city_data = self._fetch_from_api("/city/map")
+        jobs_data = self._fetch_from_api("/city/jobs")
+        weather_data = self._fetch_from_api("/city/weather")
+
+        # Guardar regardless of changes
+        if city_data:
+            self._save_data("city_map", city_data)
+        if jobs_data:
+            self._save_data("jobs", jobs_data)
+        if weather_data:
+            self._save_data("weather", weather_data)
+
         return {
-            "online": not self.offline_mode,
-            "last_attempt": self.last_connection_attempt,
-            "cache_dir": str(self.cache_dir),
-            "data_dir": str(self.data_dir),
+            "city_map": city_data or self._load_previous_data("city_map") or self._get_default_data("city_map"),
+            "jobs": jobs_data or self._load_previous_data("jobs") or self._get_default_data("jobs"),
+            "weather": weather_data or self._load_previous_data("weather") or self._get_default_data("weather")
         }
 
-    def clear_cache(self, endpoint: str = None) -> bool:
-        try:
-            if endpoint:
-                pattern = f"{endpoint.replace('/', '_')}*.json"
-                files = list(self.cache_dir.glob(pattern))
-            else:
-                files = list(self.cache_dir.glob("*.json"))
 
-            for file in files:
-                file.unlink()
+# Función de prueba específica
+def test_api_endpoints():
+    """Probar específicamente cada endpoint del API"""
+    fetcher = APIDataManager()
 
-            logger.info(f"Cache limpiado: {len(files)} archivos eliminados")
-            return True
-        except Exception as e:
-            logger.error(f"Error al limpiar cache: {e}")
-            return False
+    print("=== PRUEBA DE ENDPOINTS DEL API ===")
 
+    # Probar cada endpoint individualmente
+    print("\n1. Probando /city/map:")
+    city_result = fetcher.get_city_map()
+    print(f"   Fuente: {city_result['source']}")
+    print(f"   Cambios: {city_result['changed']}")
+    print(f"   Tipo de datos: {type(city_result['data'])}")
+    if isinstance(city_result['data'], dict):
+        print(f"   Keys: {list(city_result['data'].keys())}")
 
-# Si lo deseas, puedo añadir ejemplos de uso simples o tests con pytest para
-# comprobar comportamientos (caché con params, fallback local, escritura atómica, etc.).
+    print("\n2. Probando /city/jobs:")
+    jobs_result = fetcher.get_jobs()
+    print(f"   Fuente: {jobs_result['source']}")
+    print(f"   Cambios: {jobs_result['changed']}")
+    print(f"   Tipo de datos: {type(jobs_result['data'])}")
+    if isinstance(jobs_result['data'], list):
+        print(f"   Cantidad de jobs: {len(jobs_result['data'])}")
+        if jobs_result['data']:
+            print(f"   Ejemplo del primer job: {jobs_result['data'][0]}")
+
+    print("\n3. Probando /city/weather:")
+    weather_result = fetcher.get_weather()
+    print(f"   Fuente: {weather_result['source']}")
+    print(f"   Cambios: {weather_result['changed']}")
+    print(f"   Tipo de datos: {type(weather_result['data'])}")
+    if isinstance(weather_result['data'], dict):
+        print(f"   Keys: {list(weather_result['data'].keys())}")
+        if 'bursts' in weather_result['data']:
+            print(f"   Cantidad de bursts: {len(weather_result['data']['bursts'])}")
+
+if __name__ == "__main__":
+    test_api_endpoints()
