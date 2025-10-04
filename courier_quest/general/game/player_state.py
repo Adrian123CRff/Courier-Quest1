@@ -2,9 +2,8 @@
 import time
 from typing import Optional
 from .inventory import Inventory
-from .weather_system import WeatherSystem
 from .player_stats import PlayerStats  # Importación corregida
-
+from .weather_markov import WeatherMarkov
 
 class PlayerState:
     def __init__(self):
@@ -13,7 +12,7 @@ class PlayerState:
         self.weather_data = {}
         self.money = 0.0
         self.inventory = Inventory()
-        self.weather_system = WeatherSystem()
+        self.weather_system = WeatherMarkov()
         self.current_time = 0.0
         self.game_duration = 15 * 60
         self.at_rest_point = False
@@ -27,16 +26,44 @@ class PlayerState:
         self.jobs_data = jobs_data or []
         self.weather_data = weather_data or {}
         try:
-            self.weather_system.initialize(weather_data)
-        except Exception:
-            pass
+            # WeatherMarkov puede usar los datos de la API directamente
+            if weather_data and "bursts" in weather_data:
+                # Podemos configurar estados iniciales desde los bursts
+                first_burst = weather_data["bursts"][0]
+                self.weather_system.force_state(
+                    first_burst.get("condition", "clear"),
+                    first_burst.get("intensity", 0.5)
+                )
+        except Exception as e:
+            print(f"Error inicializando weather system: {e}")
+            # Inicialización por defecto
+            self.weather_system.force_state("clear", 0.5)
 
     def update(self, delta_time: float):
         self.current_time += delta_time
         try:
             self.weather_system.update(delta_time)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error actualizando weather system: {e}")
+
+            # Actualizar estadísticas del jugador
+        inventory_weight = getattr(self.inventory, "current_weight", 0.0)
+
+        # Obtener clima actual desde WeatherMarkov
+        weather_state = self.weather_system.get_state()
+        current_weather = weather_state.get("condition", "clear")
+
+        self.player_stats.update(delta_time, False, self.at_rest_point, inventory_weight, current_weather)
+
+        # Verificar condiciones de victoria/derrota
+        if self.player_stats.is_game_over():
+            self.game_over("Derrota: Reputación muy baja")
+        elif self.current_time >= self.game_duration:
+            goal = self.map_data.get("goal", 3000)
+            if self.money >= goal:
+                self.game_over("Victoria: ¡Alcanzaste la meta de ingresos!")
+            else:
+                self.game_over("Derrota: No alcanzaste la meta de ingresos")
 
         # Actualizar estadísticas del jugador
         inventory_weight = getattr(self.inventory, "current_weight", 0.0)
@@ -101,4 +128,12 @@ class PlayerState:
     def reputation(self):
         return self.player_stats.reputation
 
+    def current_weather_condition(self):
+        """Propiedad para obtener la condición climática actual."""
+        return self.weather_system.get_state().get("condition", "clear")
+
+    @property
+    def weather_multiplier(self):
+        """Propiedad para obtener el multiplicador de velocidad actual."""
+        return self.weather_system.get_state().get("multiplier", 1.0)
 # Eliminar la clase PlayerStats duplicada que estaba al final del archivo
