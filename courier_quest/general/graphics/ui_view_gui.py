@@ -242,31 +242,43 @@ class LoadMenuView(arcade.View):
         v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=15)
 
         saves = list_saves()
-        for i in range(1, 4):
-            slot = f"slot{i}.sav"
-            if slot in saves:
-                txt = f"Cargar Slot {i}"
-            else:
-                txt = f"Slot {i}: Vacío"
-            btn = arcade.gui.UIFlatButton(text=txt, width=250)
-            v_box.add(btn)
+        if not saves:
+            empty_text = arcade.Text(
+                "No hay partidas guardadas.",
+                SCREEN_WIDTH / 2,
+                SCREEN_HEIGHT / 2,
+                arcade.color.LIGHT_GRAY,
+                font_size=20,
+                anchor_x="center"
+            )
+            self.empty_text = empty_text
+        else:
+            # Ordenar los slots (slot1, slot2, ...)
+            saves = sorted(saves, key=lambda x: int(x.replace("slot", "").replace(".sav", "")))
 
-            @btn.event("on_click")
-            def on_click(event, slot=slot):
-                if slot in saves:
-                    data = load_game(slot)
-                    if data:
-                        state = PlayerState()
-                        state.city_map = data.get("city_map", {})
-                        state.jobs = data.get("jobs", [])
-                        state.weather_state = data.get("weather_state", {})
-                        self.window.show_view(MapPlayerViewWithPause(state, slot))
-                else:
-                    print(f"[INFO] Slot vacío: {slot}")
+            for slot in saves:
+                btn = arcade.gui.UIFlatButton(text=f"Cargar {slot}", width=250)
+                v_box.add(btn)
 
-        # Volver
+                @btn.event("on_click")
+                def on_click(event, slot=slot):
+                    try:
+                        data = load_game(slot)
+                        if data:
+                            state = PlayerState()
+                            state.city_map = data.get("city_map", {})
+                            state.jobs = data.get("jobs", [])
+                            state.weather_state = data.get("weather_state", {})
+                            self.window.show_view(MapPlayerViewWithPause(state, slot))
+                        else:
+                            print(f"[INFO] No se pudo cargar {slot}")
+                    except Exception as e:
+                        print(f"[UI] Error cargando {slot}: {e}")
+
+        # Botón volver
         back_btn = arcade.gui.UIFlatButton(text="Volver", width=200)
         v_box.add(back_btn)
+
         @back_btn.event("on_click")
         def on_back(event):
             self.window.show_view(GameMenuView())
@@ -277,13 +289,18 @@ class LoadMenuView(arcade.View):
 
     def on_show_view(self):
         self.manager.enable()
+
     def on_hide_view(self):
         self.manager.disable()
+
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+
     def on_draw(self):
         self.clear()
         self.manager.draw()
+        if hasattr(self, "empty_text"):
+            self.empty_text.draw()
 
 
 # ========================
