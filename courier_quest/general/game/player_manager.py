@@ -5,7 +5,7 @@ from typing import Tuple, Optional, Any
 import arcade
 
 # Velocidad base en celdas/segundo (ajustable)
-CELLS_PER_SEC = 9.0
+CELLS_PER_SEC = 17.0
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 RESOURCE_PATH = os.path.join(BASE_PATH, "..", "..", "resources", "icons", "ciclista.png")

@@ -3,7 +3,7 @@ import arcade.gui
 import os
 
 # --- tus módulos del juego ---
-from run_api.api_client import APIDataManager
+from run_api.api_client import ApiClient
 from run_api.state_initializer import init_game_state
 from run_api.save_manager import save_game, load_game, list_saves
 from graphics.game_window import MapPlayerView   # ventana real del juego
@@ -208,7 +208,7 @@ class NewGameMenuView(arcade.View):
     def create_game(self, slot):
         """Crea una nueva partida en el slot indicado."""
         try:
-            api = APIDataManager()
+            api = ApiClient()
             state = init_game_state(api)
             save_game(state, slot)
             print(f"[INFO] Nueva partida creada en {slot}")
