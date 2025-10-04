@@ -137,30 +137,33 @@ class NewGameMenuView(arcade.View):
         self.manager = arcade.gui.UIManager()
         v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=15)
 
-        saves = list_saves()
+        self.saves = list_saves()
+
+        # Mostrar slots existentes o vacíos
         for i in range(1, 4):
             slot = f"slot{i}.sav"
-            if slot in saves:
-                txt = f"Slot {i}: Ocupado"
-            else:
-                txt = f"Crear en Slot {i}"
+            txt = f"Slot {i}: {'Ocupado' if slot in self.saves else 'Vacío'}"
             btn = arcade.gui.UIFlatButton(text=txt, width=250)
             v_box.add(btn)
 
             @btn.event("on_click")
             def on_click(event, slot=slot):
-                if slot not in saves:  # solo si está libre
-                    try:
-                        api = APIDataManager()
-                        state = init_game_state(api)
-                        save_game(state, slot)
-                        self.window.show_view(MapPlayerViewWithPause(state, slot))
-                    except Exception as e:
-                        print(f"[UI] Error creando partida en {slot}: {e}")
+                self.confirm_overwrite(slot)
+
+        # Opción para crear un nuevo slot adicional
+        new_slot_btn = arcade.gui.UIFlatButton(text="Crear Nuevo Slot", width=250)
+        v_box.add(new_slot_btn)
+
+        @new_slot_btn.event("on_click")
+        def on_new_slot(event):
+            new_index = len(self.saves) + 1
+            new_slot = f"slot{new_index}.sav"
+            self.create_game(new_slot)
 
         # Volver
         back_btn = arcade.gui.UIFlatButton(text="Volver", width=200)
         v_box.add(back_btn)
+
         @back_btn.event("on_click")
         def on_back(event):
             self.window.show_view(GameMenuView())
@@ -169,15 +172,64 @@ class NewGameMenuView(arcade.View):
         anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
         self.manager.add(anchor)
 
+    def confirm_overwrite(self, slot):
+        """Pregunta al jugador si desea sobreescribir la partida."""
+        self.manager.clear()
+        confirm_box = arcade.gui.UIBoxLayout(vertical=True, space_between=15)
+
+        confirm_text = arcade.Text(
+            f"El {slot} ya existe.\n¿Deseas sobreescribirlo?",
+            SCREEN_WIDTH / 2,
+            SCREEN_HEIGHT / 2 + 60,
+            arcade.color.WHITE,
+            font_size=18,
+            anchor_x="center"
+        )
+
+        yes_btn = arcade.gui.UIFlatButton(text="Sí, sobreescribir", width=200)
+        no_btn = arcade.gui.UIFlatButton(text="Cancelar", width=200)
+        confirm_box.add(yes_btn)
+        confirm_box.add(no_btn)
+
+        @yes_btn.event("on_click")
+        def on_yes(event):
+            self.create_game(slot)
+
+        @no_btn.event("on_click")
+        def on_no(event):
+            self.window.show_view(NewGameMenuView())
+
+        anchor = arcade.gui.UIAnchorLayout()
+        anchor.add(child=confirm_box, anchor_x="center_x", anchor_y="center_y")
+        self.manager.add(anchor)
+
+        self.confirm_text = confirm_text
+
+    def create_game(self, slot):
+        """Crea una nueva partida en el slot indicado."""
+        try:
+            api = APIDataManager()
+            state = init_game_state(api)
+            save_game(state, slot)
+            print(f"[INFO] Nueva partida creada en {slot}")
+            self.window.show_view(MapPlayerViewWithPause(state, slot))
+        except Exception as e:
+            print(f"[UI] Error creando partida en {slot}: {e}")
+
     def on_show_view(self):
         self.manager.enable()
+
     def on_hide_view(self):
         self.manager.disable()
+
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+
     def on_draw(self):
         self.clear()
         self.manager.draw()
+        if hasattr(self, "confirm_text"):
+            self.confirm_text.draw()
 
 
 # ========================
@@ -316,12 +368,43 @@ class MapPlayerViewWithPause(MapPlayerView):
         self.state = state
         self.slot = slot
 
+        # --- UI Manager para el botón ---
+        self.manager = arcade.gui.UIManager()
+        self.manager.enable()
+
+        # Layout con el botón en la esquina superior derecha
+        anchor = arcade.gui.UIAnchorLayout()
+
+        pause_btn = arcade.gui.UIFlatButton(text="☰ Menú", width=100)
+        anchor.add(child=pause_btn, anchor_x="right", anchor_y="top", align_x=-10, align_y=-10)
+
+        @pause_btn.event("on_click")
+        def on_pause(event):
+            pause_menu = PauseMenuView(self, self.state, self.slot)
+            self.window.show_view(pause_menu)
+
+        self.manager.add(anchor)
+
+    def on_draw(self):
+        super().on_draw()  # dibuja el mapa del juego
+        self.manager.draw()  # dibuja el botón encima
+
     def on_key_press(self, key, modifiers):
         if key == arcade.key.ESCAPE:
             pause_menu = PauseMenuView(self, self.state, self.slot)
             self.window.show_view(pause_menu)
         else:
             super().on_key_press(key, modifiers)
+
+    # Necesario para que el botón reciba eventos
+    def on_mouse_press(self, x, y, button, modifiers):
+        self.manager.on_mouse_press(x, y, button, modifiers)
+
+    def on_mouse_release(self, x, y, button, modifiers):
+        self.manager.on_mouse_release(x, y, button, modifiers)
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        self.manager.on_mouse_motion(x, y, dx, dy)
 
 
 # ========================
