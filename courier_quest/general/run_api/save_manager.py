@@ -1,37 +1,33 @@
-#save_manager.py
-import os
 import json
 import pickle
 import time
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
 from dataclasses import is_dataclass, asdict
-
-
 
 BASE_DIR = Path(__file__).resolve().parent
 SAVE_DIR = BASE_DIR / "saves"
 DEBUG_DIR = SAVE_DIR / "debug"
-SAVE_DIR.mkdir(exist_ok=True, parents=True)
-DEBUG_DIR.mkdir(exist_ok=True, parents=True)
+SAVE_DIR.mkdir(parents=True, exist_ok=True)
+DEBUG_DIR.mkdir(parents=True, exist_ok=True)
 
+
+def _normalize_state(state: Any) -> Dict[str, Any]:
+    if isinstance(state, dict):
+        return dict(state)
+    if hasattr(state, "to_dict") and callable(state.to_dict):
+        return state.to_dict()
+    if is_dataclass(state):
+        return asdict(state)
+    raise TypeError(
+        f"save_game() espera dict, dataclass o objeto con to_dict(); recibido {type(state).__name__}"
+    )
 
 
 def save_game(state: Any, slot_name: str = "slot1.sav") -> str:
-    """Guarda un GameState en formato binario (.sav) y en JSON para debug."""
+    """Guarda el estado en binario (.sav) y un JSON de debug legible."""
     path = SAVE_DIR / slot_name
-
-    # Normalizar el estado a dict
-    if isinstance(state, dict):
-        state_dict: Dict[str, Any] = state
-    elif hasattr(state, "to_dict") and callable(getattr(state, "to_dict")):
-        state_dict = state.to_dict()
-    elif is_dataclass(state):
-        state_dict = asdict(state)
-    else:
-        raise TypeError(
-            f"save_game() espera un dict, un objeto con to_dict() o una dataclass; recibido {type(state)._name_}"
-        )
+    state_dict = _normalize_state(state)
 
     payload = {
         "meta": {
@@ -39,14 +35,13 @@ def save_game(state: Any, slot_name: str = "slot1.sav") -> str:
             "version": "1.0",
             "timestamp": time.time(),
         },
-        "state": state.to_dict()
+        "state": state_dict,  # <-- guardamos el dict tal cual (snapshot)
     }
 
-    # Guardar binario
     with open(path, "wb") as f:
         pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-    # Guardar JSON legible en carpeta debug
+    # JSON de apoyo (opcional)
     debug_path = DEBUG_DIR / f"{slot_name}.json"
     with open(debug_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
@@ -54,27 +49,27 @@ def save_game(state: Any, slot_name: str = "slot1.sav") -> str:
     print(f"[SAVE] Partida guardada en {path}")
     return str(path)
 
+
 def load_game(slot_name: str = "slot1.sav") -> Optional[Dict[str, Any]]:
-    """Carga un GameState desde un archivo .sav binario."""
+    """Carga el .sav y devuelve el dict del estado."""
     path = SAVE_DIR / slot_name
     if not path.exists():
-        print(f"[LOAD] No existe el archivo {slot_name}")
+        print(f"[LOAD] No existe {slot_name}")
         return None
 
     try:
         with open(path, "rb") as f:
             payload = pickle.load(f)
-        state_dict = payload.get("state", {})
-        if not isinstance(state_dict, dict):
-            raise ValueError("El contenido de 'state' no es un dict válido")
-        return state_dict
+        state = payload.get("state", {})
+        if not isinstance(state, dict):
+            raise ValueError("Campo 'state' no es un dict")
+        return state
     except Exception as e:
         print(f"[ERROR] Falló la carga de {slot_name}: {e}")
         return None
 
 
 def list_saves() -> list[str]:
-    """Lista los archivos de guardado disponibles ordenados por fecha."""
-    saves = [f for f in SAVE_DIR.iterdir() if f.suffix == ".sav"]
-    saves.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return [p.name for p in saves]
+    saves = [p.name for p in SAVE_DIR.glob("*.sav")]
+    saves.sort(key=lambda n: int(n.replace("slot", "").replace(".sav", "")) if n.startswith("slot") else 9999)
+    return saves
