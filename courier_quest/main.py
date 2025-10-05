@@ -2,7 +2,7 @@
 import arcade
 from general.graphics.ui_view_gui import MainMenuView
 
-SCREEN_WIDTH = 800
+SCREEN_WIDTH = 1250
 SCREEN_HEIGHT = 800
 SCREEN_TITLE = "Courier Quest"
 

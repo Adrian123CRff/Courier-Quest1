@@ -177,3 +177,12 @@ class Inventory:
         return True
 
     # ... (resto de métodos sin cambios)
+# inventory.py - AÑADIR MÉTODO PÚBLICO
+# Añade este método a tu clase Inventory:
+
+    def get_deque_values(self) -> List[Any]:
+        """
+        Método público para obtener los valores del deque.
+        Reemplaza el uso de _deque_values().
+        """
+        return self._deque_values()

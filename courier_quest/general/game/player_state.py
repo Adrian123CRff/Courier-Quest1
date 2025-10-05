@@ -1,6 +1,6 @@
 # player_state.py
 import time
-from typing import Optional
+#from typing import Optional
 from .inventory import Inventory
 from .player_stats import PlayerStats  # Importación corregida
 from .weather_markov import WeatherMarkov

@@ -158,6 +158,8 @@ class Deque(Generic[T]):
 
         val = node.val
         self._size -= 1
+        # limpiar referencias para ayudar al GC
+        node.prev = node.next = None
         return val
 
     def __len__(self):

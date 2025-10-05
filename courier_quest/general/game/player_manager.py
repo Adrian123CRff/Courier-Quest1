@@ -72,25 +72,28 @@ class Player:
         ty = self.cell_y + dy
 
         # Verificar límites del mapa
+        if game_map is None:
+            print("game_map es None en Player.move_by")
+            return False
         if not (0 <= tx < game_map.width and 0 <= ty < game_map.height):
             return False
 
-        # Verificar stamina
         try:
             if self.bound_stats and getattr(self.bound_stats, "stamina", 0.0) <= 0.0:
                 return False
         except Exception:
             pass
 
-        # Verificar si la celda es transitable
+            # Verificar si la celda es transitable
         if not game_map.is_walkable(tx, ty):
             return False
 
-        # Iniciar movimiento
+            # Iniciar movimiento
         self.request_move_to_cell(tx, ty)
         return True
+
     @staticmethod
-    def _get_climate_penalty_value(self, weather_cond: str) -> float:
+    def _get_climate_penalty_value(self, weather_cond: str) -> float:  # ✅ Añadido parámetro
         """Valor numérico de penalización por clima para consumo de stamina."""
         if weather_cond in ["rain", "wind"]:
             return 0.1
@@ -99,6 +102,7 @@ class Player:
         if weather_cond == "heat":
             return 0.2
         return 0.0
+
     @staticmethod
     def _get_surface_multiplier(self, game_map, x: int, y: int) -> float:
         """Obtiene el multiplicador de superficie según el tipo de tile."""

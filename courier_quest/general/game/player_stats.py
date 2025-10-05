@@ -1,16 +1,15 @@
-# game/player_stats.py
+# player_stats.py - PARCHE COMPLETO
 import time
 from typing import Dict, Any
 
 
 class PlayerStats:
     """
-    Gestión de stamina y reputación.
+    Gestión de stamina y reputación según especificaciones del PDF.
 
-    - Consumo por celda: 0.5 por defecto (consume_stamina base_cost=0.5).
-    - Recuperación: 1 punto cada RECOVER_INTERVAL segundos (RECOVER_INTERVAL = 1.0),
-      sólo si el jugador está quieto (is_moving == False) y no hay input activo.
-    - Movimiento bloqueado únicamente si stamina == 0.
+    - Consumo por celda: 0.5 base + penalizaciones por peso y clima
+    - Recuperación: +1 por segundo cuando está quieto y sin input activo
+    - Estados: Normal (>30), Cansado (10-30), Exhausto (≤10)
     """
 
     STAMINA_STATES = {
@@ -87,20 +86,57 @@ class PlayerStats:
         state = self.get_stamina_state()
         return self.STAMINA_STATES[state]["multiplier"]
 
+    def consume_stamina(self, base_cost: float = 0.5, weight: float = 0.0, weather_penalty: float = 0.0) -> bool:
+        """
+        Consume stamina cuando se completa una celda según especificaciones del PDF:
+        - base_cost: 0.5 por celda
+        - weight: peso del inventario (penalización si > 3)
+        - weather_penalty: penalización numérica por clima
+
+        Devuelve True si antes de consumir había > 0 stamina.
+        """
+        # Si ya está a 0 -> no puede moverse / no consumir más
+        if self.stamina <= 0.0:
+            return False
+
+        # Penalización por peso (según PDF: -0.2 por cada unidad sobre 3)
+        weight_penalty = 0.0
+        if weight > 3.0:
+            weight_penalty = 0.2 * (weight - 3.0)
+
+        # Penalización por clima ya viene calculada desde player_manager
+        total_cost = base_cost + weight_penalty + weather_penalty
+
+        # restar (no bajar de 0)
+        self.stamina = max(0.0, self.stamina - total_cost)
+        return True
+
     def update_reputation(self, event_type: str, data: Dict[str, Any] = None) -> int:
+        """
+        Actualiza la reputación según especificaciones del PDF:
+        - Entrega a tiempo: +3
+        - Entrega temprana (≥20% antes): +5
+        - Tarde ≤30s: -2; 31-120s: -5; >120s: -10
+        - Cancelar pedido aceptado: -4
+        - Perder/expirar paquete: -6
+        - Racha de 3 entregas sin penalización: +2
+        """
         data = data or {}
         reputation_change = 0
+
         if event_type == "delivery_on_time":
             reputation_change = 3
             self.consecutive_on_time_deliveries += 1
             if self.consecutive_on_time_deliveries >= 3:
                 reputation_change += 2
                 self.consecutive_on_time_deliveries = 0
+
         elif event_type == "delivery_early":
             early_percent = data.get("early_percent", 20)
             if early_percent >= 20:
                 reputation_change = 5
                 self.consecutive_on_time_deliveries += 1
+
         elif event_type == "delivery_late":
             seconds_late = data.get("seconds_late", 0)
             if seconds_late <= 30:
@@ -110,59 +146,48 @@ class PlayerStats:
             else:
                 reputation_change = -10
 
+            # Mitigar primera penalización si reputación alta
             if self.first_late_delivery_of_day and self.reputation >= 85:
-                reputation_change = reputation_change // 2
+                reputation_change = reputation_change // 2  # Mitigar a la mitad
                 self.first_late_delivery_of_day = False
+
             self.consecutive_on_time_deliveries = 0
+
         elif event_type == "cancel_order":
             reputation_change = -4
             self.consecutive_on_time_deliveries = 0
+
         elif event_type == "lose_package":
             reputation_change = -6
             self.consecutive_on_time_deliveries = 0
 
+        # Aplicar cambio y mantener en rango 0-100
+        old_reputation = self.reputation
         self.reputation += reputation_change
         self.reputation = max(0, min(100, self.reputation))
+
         return reputation_change
 
     def get_payment_multiplier(self) -> float:
+        """+5% de pago si reputación ≥90 según PDF"""
         return 1.05 if self.reputation >= self.REPUTATION_THRESHOLDS["excellent"] else 1.0
 
     def is_game_over(self) -> bool:
+        """Derrota inmediata si reputación < 20"""
         return self.reputation < self.REPUTATION_THRESHOLDS["defeat"]
 
-    def consume_stamina(self,
-                        base_cost: float = 0.5,
-                        weight: float = 0.0,
-                        current_weather: str = "clear") -> bool:
-        """
-        Consume stamina cuando se completa una celda:
-        - base_cost: por defecto 0.5 (lo pedido).
-        - weight: peso del inventario (añade penalización si > 3).
-        - current_weather: puede añadir penalización por clima.
-        Devuelve True si antes de consumir había > 0 stamina (es decir, el movimiento era permitido).
-        Nota: si stamina queda en 0, el jugador ya no podrá iniciar futuros movimientos.
-        """
-        # Si ya está a 0 -> no puede moverse / no consumir más
-        if self.stamina <= 0.0:
-            return False
+    def get_stamina_percentage(self) -> float:
+        """Retorna el porcentaje de stamina (0.0 a 1.0)"""
+        return self.stamina / 100.0
 
-        weight_penalty = 0.0
-        if weight > 3.0:
-            weight_penalty = 0.2 * (weight - 3.0)
+    def can_move(self) -> bool:
+        """Verifica si el jugador puede moverse (stamina > 0)"""
+        return self.stamina > 0.0
 
-        weather_penalty = 0.0
-        if current_weather in ("rain", "wind"):
-            weather_penalty = 0.1
-        elif current_weather == "storm":
-            weather_penalty = 0.3
-        elif current_weather == "heat":
-            weather_penalty = 0.2
-        elif current_weather == "snow":
-            weather_penalty = 0.12
-
-        total_cost = base_cost + weight_penalty + weather_penalty
-
-        # restar (no bajar de 0)
-        self.stamina = max(0.0, self.stamina - total_cost)
-        return True
+    def reset(self):
+        """Reinicia las estadísticas del jugador"""
+        self.stamina = 100.0
+        self.reputation = 70
+        self.consecutive_on_time_deliveries = 0
+        self.first_late_delivery_of_day = True
+        self._idle_recover_accum = 0.0
