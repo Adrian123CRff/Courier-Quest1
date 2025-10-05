@@ -186,3 +186,13 @@ class Inventory:
         Reemplaza el uso de _deque_values().
         """
         return self._deque_values()
+
+    def sort_by_priority(self):
+        items = self._deque_values()
+        items.sort(key=lambda job: -getattr(job, 'priority', 0))  # Merge Sort o QuickSort
+        self._rebuild_from_list(items)
+
+    def sort_by_deadline(self):
+        items = self._deque_values()
+        items.sort(key=lambda job: getattr(job, 'deadline_timestamp', float('inf')))
+        self._rebuild_from_list(items)

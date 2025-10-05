@@ -1,7 +1,8 @@
-# state_initializer.py
+# state_initializer.py - CORREGIDO
 import json
 from pathlib import Path
 from typing import Optional
+from datetime import datetime  # ✅ AÑADIR IMPORT
 
 from .models import GameState
 from .api_client import ApiClient
@@ -49,86 +50,69 @@ def _fallback_tiles_from_cache(city_map: dict) -> dict:
 
 def init_game_state(api: Optional[ApiClient] = None, force_update: bool = False) -> GameState:
     """
-    Inicializa y retorna un GameState usando ApiDataManager (o creando uno).
-    - Si force_update=True intentará forzar la obtención de datos frescos desde la API.
-    - Si la API no trae 'tiles', usará la cache de api_cache/city_map.json si existe.
+    Inicializa GameState usando EXCLUSIVAMENTE datos del API
     """
     if api is None:
         api = ApiClient()
 
     state = GameState()
 
-    # ------------- Obtener city_map (con intento de force_update si se pide) -------------
-    city_map = {}
     try:
-        if force_update:
-            # Intentar llamar con parámetro force_update si el cliente lo permite
-            try:
-                city_map = api.get_city_map(force_update=True)
-            except TypeError:
-                # la firma no acepta force_update -> llamar normal
-                city_map = api.get_city_map()
-        else:
-            city_map = api.get_city_map()
+        # Obtener datos DINÁMICOS del API
+        city_map = api.get_city_map()
+        jobs = api.get_jobs()
+        weather = api.get_weather()
+
+        # Validar datos críticos
+        if not city_map.get("start_time"):
+            print("❌ ERROR: El mapa no tiene start_time")
+            # Podemos generar uno basado en tiempo actual si es necesario
+            city_map["start_time"] = datetime.now().isoformat() + "Z"
+
+        if not city_map.get("max_time"):
+            print("❌ ERROR: El mapa no tiene max_time")
+            city_map["max_time"] = 900  # Valor por defecto genérico
+
+        # Rellenar el estado con datos DINÁMICOS
+        state.city_map = city_map
+        state.orders = jobs or []
+        state.weather_state = weather or {}
+
+        # Configurar jugador con datos dinámicos
+        state.player = {
+            "name": "Courier",
+            "stamina": 100,
+            "money": 0,
+        }
+
+        state.reputation = 70
+
+        print(f"[INIT] Estado inicializado con datos del API:")
+        print(f"  - Ciudad: {city_map.get('name')}")
+        print(f"  - Meta: ${city_map.get('goal')}")
+        print(f"  - Duración: {city_map.get('max_time')}s")
+        print(f"  - Trabajos: {len(state.orders)}")
+
     except Exception as e:
-        print("[INIT] Error al obtener city_map desde API:", e)
-        city_map = {}
-
-    # Aplicar fallback a cache si no hay tiles en la respuesta
-    city_map = _fallback_tiles_from_cache(city_map)
-
-    # ------------- Obtener jobs y weather (con try/except) -------------
-    try:
-        # intentar force en jobs si está disponible
-        if force_update and hasattr(api, "get_jobs"):
-            try:
-                jobs = api.get_jobs(force_update=True)
-            except TypeError:
-                jobs = api.get_jobs()
-        else:
-            jobs = api.get_jobs()
-    except Exception as e:
-        print("[INIT] Error al obtener jobs:", e)
-        jobs = []
-
-    try:
-        if force_update and hasattr(api, "get_weather"):
-            try:
-                weather = api.get_weather(force_update=True)
-            except TypeError:
-                weather = api.get_weather()
-        else:
-            weather = api.get_weather()
-    except Exception as e:
-        print("[INIT] Error al obtener weather:", e)
-        weather = {}
-
-    # ------------- Rellenar el estado -------------
-    # guardar el dict del mapa en el estado para que GameMap lo consuma
-    state.city_map = city_map or {}
-
-    # pedidos / orders
-    state.orders = jobs or []
-
-    # clima
-    state.weather_state = weather or {}
-
-    # jugador básico
-    state.player = {
-        "name": "Courier",
-        "hp": 100,
-        "stamina": 100,
-        "money": 0,
-    }
-
-    # reputación inicial (puedes adaptar)
-    state.reputation = 70
-
-    # debug summary
-    try:
-        cm_keys = list(state.city_map.keys()) if isinstance(state.city_map, dict) else []
-        print(f"[INIT] state.city_map keys: {cm_keys}")
-    except Exception:
-        pass
+        print(f"❌ ERROR CRÍTICO inicializando estado: {e}")
+        # En caso de error total, usar valores genéricos
+        state = _create_minimal_state()
 
     return state
+
+def _create_minimal_state() -> GameState:
+    """Crea estado mínimo genérico en caso de fallo total"""
+    return GameState(
+        player={"name": "Courier", "stamina": 100, "money": 0},
+        city_map={
+            "name": "FallbackCity",
+            "width": 20,
+            "height": 15,
+            "goal": 1000,
+            "start_time": datetime.now().isoformat() + "Z",
+            "max_time": 900
+        },
+        orders=[],
+        weather_state={},
+        reputation=70
+    )

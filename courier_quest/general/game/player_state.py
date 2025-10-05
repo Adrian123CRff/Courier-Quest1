@@ -14,11 +14,9 @@ class PlayerState:
         self.weather_data = {}
         self.money = 0.0
         self.current_time = 0.0
-        self.game_duration = 15 * 60
+        self.game_duration = None  # Se establecerá dinámicamente
         self.start_time_epoch = time.time()
         self.at_rest_point = False
-
-        # Estado del jugador
         self.player_x = 0
         self.player_y = 0
 
@@ -26,15 +24,22 @@ class PlayerState:
         self.inventory = Inventory()
         self.weather_system = WeatherMarkov()
         self.player_stats = PlayerStats()
-
     # =======================
     # Inicialización del juego
     # =======================
-    def initialize_game(self, map_data, jobs_data, weather_data):
+    def initialize_game(self, map_data, jobs_data, weather_data, game_duration=None):
         """Inicializa el estado del juego con datos del mapa, trabajos y clima."""
         self.map_data = map_data or {}
         self.jobs_data = jobs_data or []
         self.weather_data = weather_data or {}
+
+        self.game_duration = game_duration or self.map_data.get("max_time")
+        if self.game_duration is None:
+            raise ValueError("❌ No se pudo determinar game_duration")
+
+        print(f"[PLAYER_STATE] Inicializado:")
+        print(f"  - Duración del juego: {self.game_duration}s")
+        print(f"  - Meta de ingresos: {self.map_data.get('goal', 'No especificada')}")
 
         try:
             # Configuración inicial del clima si hay datos de API

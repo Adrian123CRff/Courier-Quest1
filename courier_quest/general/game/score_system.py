@@ -1,4 +1,4 @@
-# score_system.py
+# score_system.py - CORREGIDO
 import json
 import os
 import time
@@ -45,7 +45,7 @@ class ScoreEntry:
 class ScoreSystem:
     """Sistema de puntuación según especificaciones del PDF"""
 
-    def __init__(self, save_dir: str = "saves"):
+    def __init__(self, save_dir: str = "saves", game_duration: int = 900):  # ✅ PARÁMETRO DINÁMICO
         self.save_dir = save_dir
         self.scores_file = os.path.join(save_dir, "highscores.json")
 
@@ -56,7 +56,7 @@ class ScoreSystem:
         self.cancellations = 0
         self.lost_packages = 0
         self.game_start_time = 0
-        self.game_duration = 15 * 60  # 15 minutos en segundos
+        self.game_duration = game_duration  # ✅ USAR VALOR DINÁMICO
 
         os.makedirs(save_dir, exist_ok=True)
         self.high_scores = self._load_high_scores()

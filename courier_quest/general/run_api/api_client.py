@@ -1,6 +1,6 @@
 import requests
 import time
-import datetime
+from datetime import datetime
 from pathlib import Path
 import json
 import os
@@ -61,8 +61,8 @@ class ApiClient:
         # Intento inicial no bloqueante
         try:
             self._check_connection()
-        except Exception:
-            logger.debug("Inicialización: chequeo de conexión falló silenciosamente.")
+        except Exception as e:
+            logger.debug(f"Inicialización: chequeo de conexión falló: {e}")
 
     # ----------------------------
     # Helpers
@@ -90,12 +90,13 @@ class ApiClient:
             else:
                 logger.warning("API respondió con status != 200. Modo offline activado.")
             return not self.offline_mode
-        except requests.RequestException as e:
+        except (requests.ConnectionError, requests.Timeout, requests.RequestException) as e:
             self.offline_mode = True
             logger.warning(f"No se pudo conectar al API ({e}). Modo offline activado.")
             return False
 
-    def _params_to_str(self, params: Optional[dict]) -> str:
+    @staticmethod
+    def _params_to_str(params: Optional[dict]) -> str:
         if not params:
             return ""
         # Normalizar a string ordenado para consistencia
@@ -126,22 +127,25 @@ class ApiClient:
         latest_file = max(cache_files, key=lambda p: p.stat().st_mtime)
         return latest_file, latest_file.stat().st_mtime
 
-    def _load_json_file(self, path: Path) -> Optional[Union[dict, list]]:
+    @staticmethod
+    def _load_json_file(path: Path) -> Optional[Union[dict, list]]:
         if not path.exists():
             logger.debug(f"Archivo no encontrado: {path}")
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.error(f"Error al decodificar JSON en {path}: {e}")
             return None
-        except Exception as e:
+        except OSError as e:
             logger.error(f"Error al leer archivo {path}: {e}")
             return None
 
-    def _atomic_save_json(self, path: Path, data: Any) -> bool:
+    @staticmethod
+    def _atomic_save_json(path: Path, data: Any) -> bool:
         """Escritura atómica del JSON en disco (escribe archivo temporal y lo mueve)."""
+        tmp_name = None
         try:
             path.parent.mkdir(exist_ok=True, parents=True)
             with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", dir=str(path.parent)) as tmp:
@@ -150,13 +154,13 @@ class ApiClient:
             shutil.move(tmp_name, str(path))
             logger.info(f"Datos guardados en {path}")
             return True
-        except Exception as e:
+        except (OSError, IOError, json.JSONDecodeError) as e:
             logger.error(f"Error al guardar en {path}: {e}")
-            try:
-                if 'tmp_name' in locals() and os.path.exists(tmp_name):
+            if tmp_name and os.path.exists(tmp_name):
+                try:
                     os.remove(tmp_name)
-            except Exception:
-                pass
+                except OSError:
+                    pass
             return False
 
     def _is_cache_valid(self, path: Path) -> bool:
@@ -164,6 +168,24 @@ class ApiClient:
             return False
         age = time.time() - path.stat().st_mtime
         return age <= self.ttl
+
+    def _get_default_data(self, endpoint: str) -> Optional[Union[dict, list]]:
+        """Devuelve datos por defecto para endpoints específicos cuando todo falla."""
+        defaults = {
+            "city/map": self._get_fallback_map(),
+            "city/jobs": [],
+            "city/weather": {
+                "condition": "clear",
+                "summary": "Despejado",
+                "temperature": 25,
+                "intensity": 0.5,
+                "speed_multiplier": 1.0,
+                "bursts": [],
+                "city": "UnknownCity",
+                "date": datetime.now().strftime("%Y-%m-%d")
+            }
+        }
+        return defaults.get(endpoint)
 
     # ----------------------------
     # Fetch principal
@@ -178,7 +200,7 @@ class ApiClient:
         """
         has_connection = self._check_connection()
 
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         cache_file = self._cache_path(endpoint, params)
 
         base_name = endpoint.replace("/", "_")
@@ -205,13 +227,11 @@ class ApiClient:
                 self._atomic_save_json(timestamped_cache_file, api_data)
                 self._atomic_save_json(cache_file, api_data)
                 logger.info("Datos actualizados desde API y guardados en caché.")
-            except requests.RequestException as e:
+                return api_data
+            except (requests.ConnectionError, requests.Timeout, requests.HTTPError, requests.RequestException) as e:
                 logger.warning(f"API no disponible al intentar fetch: {e}")
                 self.offline_mode = True
-                has_connection = False
-
-        if api_data is not None:
-            return api_data
+                # Continuar con estrategias de fallback
 
         # Usar cache más reciente
         latest_cache, cache_time = self._get_latest_cache(endpoint, params)
@@ -243,36 +263,72 @@ class ApiClient:
         try:
             data = self.fetch_data("city/map")
             if not data or not isinstance(data, dict):
-                return self._get_default_map()
+                return self._get_fallback_map()
+
+            # ✅ Validar campos REQUERIDOS dinámicamente
+            required_fields = ["start_time", "max_time", "goal"]
+            missing_fields = [field for field in required_fields if field not in data]
+
+            if missing_fields:
+                print(f"⚠️  ADVERTENCIA: Mapa falta campos: {missing_fields}")
+                # Intentar completar con valores por defecto GENÉRICOS
+                data = self._complete_missing_fields(data)
 
             return {
-                "name": data.get("name", "TigerCity"),
+                "name": data.get("name", data.get("city_name", "UnknownCity")),
                 "width": data.get("width", 20),
                 "height": data.get("height", 15),
                 "tiles": data.get("tiles", []),
                 "legend": data.get("legend", {}),
-                "goal": data.get("goal", 3000),
+                "goal": data.get("goal", 1000),
+                "start_time": data.get("start_time"),
+                "max_time": data.get("max_time"),
                 "version": data.get("version", "1.0"),
             }
+
         except Exception as e:
             logger.error(f"Error al procesar el mapa: {e}")
-            return self._get_default_map()
+            return self._get_fallback_map()
 
-    def _get_default_map(self) -> Dict[str, Any]:
+    @staticmethod
+    def _complete_missing_fields(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Completa campos faltantes con valores por defecto GENÉRICOS"""
+        defaults = {
+            "start_time": "2025-01-01T00:00:00Z",
+            "max_time": 900,
+            "goal": 1000,
+        }
+
+        for field, default in defaults.items():
+            if field not in data:
+                data[field] = default
+                print(f"⚠️  Campo {field} completado con valor por defecto: {default}")
+
+        return data
+
+    @staticmethod
+    def _get_fallback_map() -> Dict[str, Any]:
+        """Fallback GENÉRICO (no específico de TigerCity)"""
         return {
-            "name": "TigerCity",
+            "name": "GenericCity",
             "width": 20,
             "height": 15,
-            # Representación simple: lista 2D de tiles (ejemplo)
             "tiles": [["C" for _ in range(20)] for _ in range(15)],
             "legend": {
                 "C": {"name": "calle", "surface_weight": 1.00},
                 "B": {"name": "edificio", "blocked": True},
                 "P": {"name": "parque", "surface_weight": 0.95},
             },
-            "goal": 3000,
+            "goal": 1000,
+            "start_time": "2025-01-01T00:00:00Z",
+            "max_time": 900,
             "version": "1.0",
         }
+
+    @staticmethod
+    def _get_default_map() -> Dict[str, Any]:
+        """Mapa por defecto (para compatibilidad)"""
+        return ApiClient._get_fallback_map()
 
     def get_jobs(self) -> list:
         try:
@@ -361,8 +417,8 @@ class ApiClient:
                 "intensity": intensity,
                 "speed_multiplier": speed_multipliers.get(condition, 1.0),
                 "bursts": bursts,
-                "city": data.get("city", "TigerCity") if isinstance(data, dict) else "TigerCity",
-                "date": data.get("date", "2025-09-01") if isinstance(data, dict) else "2025-09-01",
+                "city": data.get("city", "UnknownCity") if isinstance(data, dict) else "UnknownCity",
+                "date": data.get("date", datetime.now().strftime("%Y-%m-%d")) if isinstance(data, dict) else datetime.now().strftime("%Y-%m-%d")
             }
         except Exception as e:
             logger.error(f"Error al procesar clima: {e}")
@@ -373,21 +429,9 @@ class ApiClient:
                 "intensity": 0.5,
                 "speed_multiplier": 1.0,
                 "bursts": [],
-                "city": "TigerCity",
-                "date": "2025-09-01",
+                "city": "UnknownCity",
+                "date": datetime.now().strftime("%Y-%m-%d")
             }
-
-    def _get_default_data(self, endpoint: str) -> Optional[Union[dict, list]]:
-        defaults = {
-            "city/map": self._get_default_map(),
-            "city/jobs": [],
-            "city/weather": {
-                "city": "TigerCity",
-                "date": "2025-09-01",
-                "bursts": [{"duration_sec": 90, "condition": "clear", "intensity": 0.2}],
-            },
-        }
-        return defaults.get(endpoint, None)
 
     def get_connection_status(self) -> Dict[str, Any]:
         return {
@@ -410,10 +454,6 @@ class ApiClient:
 
             logger.info(f"Cache limpiado: {len(files)} archivos eliminados")
             return True
-        except Exception as e:
+        except OSError as e:
             logger.error(f"Error al limpiar cache: {e}")
             return False
-
-
-# Si lo deseas, puedo añadir ejemplos de uso simples o tests con pytest para
-# comprobar comportamientos (caché con params, fallback local, escritura atómica, etc.).
