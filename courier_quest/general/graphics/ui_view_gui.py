@@ -1,5 +1,7 @@
+# ui_view_gui.py
 import arcade
 import arcade.gui
+import os
 
 # --- módulos del juego ---
 from run_api.api_client import ApiClient
@@ -7,6 +9,11 @@ from run_api.state_initializer import init_game_state
 from run_api.save_manager import save_game, load_game, list_saves
 from graphics.game_window import MapPlayerView
 from game.player_state import PlayerState
+
+# --- score system (tabla de records) ---
+# --- para la tabla de récords ---
+from game.score_system import ScoreSystem, ScoreEntry
+
 
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 800
@@ -213,6 +220,14 @@ class GameMenuView(arcade.View):
         @load_btn.event("on_click")
         def on_load(event): self.window.show_view(LoadMenuView())
 
+        # --- Nuevo botón: Tabla de records ---
+        records_btn = arcade.gui.UIFlatButton(text="Tabla de records", width=200)
+        v_box.add(records_btn)
+        @records_btn.event("on_click")
+        def on_records(event):
+            # abrir la vista de records
+            self.window.show_view(RecordsView())
+
         back_btn = arcade.gui.UIFlatButton(text="Retroceder", width=200)
         v_box.add(back_btn)
         @back_btn.event("on_click")
@@ -376,6 +391,93 @@ class LoadMenuView(arcade.View):
     def on_draw(self):
         self.clear(); self.manager.draw()
         if hasattr(self, "empty_text"): self.empty_text.draw()
+
+
+# ========================
+# NUEVA VISTA: Tabla de records
+# ========================
+class RecordsView(arcade.View):
+    """
+    Muestra la tabla de records (highscores) usando ScoreSystem.
+    Tiene un botón 'Volver' que regresa a GameMenuView.
+    """
+    def __init__(self):
+        super().__init__()
+        self.manager = arcade.gui.UIManager()
+        self.score_system = ScoreSystem(save_dir="saves")  # usa el mismo directorio por defecto
+        self.scores = self.score_system.get_high_scores(limit=10)  # lista de ScoreEntry
+
+        # UI: sólo el botón volver (abajo)
+        v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=10)
+        back_btn = arcade.gui.UIFlatButton(text="Volver", width=200)
+        v_box.add(back_btn)
+        @back_btn.event("on_click")
+        def on_back(event):
+            self.window.show_view(GameMenuView())
+
+        anchor = arcade.gui.UIAnchorLayout()
+        # ubicar el botón en la parte inferior central
+        anchor.add(child=v_box, anchor_x="center_x", anchor_y="bottom", align_y=20)
+        self.manager.add(anchor)
+
+        # precomputar textos (si hay)
+        self.header = arcade.Text(
+            "Tabla de records 🏆",
+            SCREEN_WIDTH/2, SCREEN_HEIGHT - 80,
+            arcade.color.WHITE, font_size=28, anchor_x="center"
+        )
+
+        # si no hay scores, mostrar mensaje
+        if not self.scores:
+            self.empty_text = arcade.Text(
+                "No hay records aún. Disfruta de unas partidas y vuelve luego!", SCREEN_WIDTH/2, SCREEN_HEIGHT/2,
+                arcade.color.LIGHT_GRAY, font_size=18, anchor_x="center"
+            )
+        else:
+            # preparar líneas para dibujar
+            self.table_lines = []
+            # encabezados de columnas
+            header_line = f"{'Rk':<3} {'Jugador':<14} {'Score':>6} {'$':>8} {'Rep':>5} {'Entregas':>9} {'A tiempo':>8} {'Fecha':>19}"
+            self.table_lines.append(header_line)
+            # cada entry
+            for idx, e in enumerate(self.scores, start=1):
+                name = getattr(e, "player_name", "Unknown")[:14]
+                score = getattr(e, "score", 0)
+                money = getattr(e, "money_earned", 0.0)
+                rep = getattr(e, "reputation", 0.0)
+                deliveries = getattr(e, "deliveries_completed", 0)
+                on_time = getattr(e, "on_time_deliveries", 0)
+                date = getattr(e, "date", "")
+                line = f"{idx:<3} {name:<14} {score:>6} {money:>8.2f} {rep:>5.0f} {deliveries:>9} {on_time:>8} {date:>19}"
+                self.table_lines.append(line)
+
+    def on_show(self):
+        arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+
+    def on_show_view(self):
+        self.manager.enable()
+
+    def on_hide_view(self):
+        self.manager.disable()
+
+    def on_draw(self):
+        self.clear()
+        # dibujar encabezado
+        self.header.draw()
+        # dibujar tabla o mensaje vacío
+        if hasattr(self, "empty_text"):
+            self.empty_text.draw()
+        else:
+            # dibujar cada línea con separación
+            start_y = SCREEN_HEIGHT - 130
+            line_h = 22
+            # encabezado de columnas en color distinto
+            arcade.draw_text(self.table_lines[0], 40, start_y, arcade.color.LIGHT_GRAY, 14, font_name="monospace")
+            for i, line in enumerate(self.table_lines[1:], start=1):
+                y = start_y - (i * line_h)
+                arcade.draw_text(line, 40, y, arcade.color.WHITE, 14, font_name="monospace")
+        # dibujar UI manager (botón volver)
+        self.manager.draw()
 
 
 # ========================
