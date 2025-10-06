@@ -37,8 +37,10 @@ class MapPlayerView(View):
         self.game_manager: Any = None
         self.job_manager: Any = None
         self.score_system: Any = None
-        self.inventory_view_index = 0  # Corregido el nombre
-        self.inventory_sort_mode = 'normal'
+
+        # extras del segundo: navegación/orden de inventario
+        self.inventory_view_index = 0
+        self.inventory_sort_mode = "normal"
 
         # player stats
         if isinstance(self.state, dict):
@@ -97,8 +99,7 @@ class MapPlayerView(View):
         self.weather_text = Text("", MAP_WIDTH + 10, SCREEN_HEIGHT - 85, arcade.color.LIGHT_BLUE, 12)
         self.inventory_title = Text("INVENTARIO", MAP_WIDTH + 10, SCREEN_HEIGHT - 120, arcade.color.CYAN, 14, bold=True)
         self.inventory_text = Text("", MAP_WIDTH + 10, SCREEN_HEIGHT - 140, arcade.color.WHITE, 11)
-        self.jobs_title = Text("PEDIDOS ACTIVOS", MAP_WIDTH + 10, SCREEN_HEIGHT - 200, arcade.color.ORANGE, 14,
-                               bold=True)
+        self.jobs_title = Text("PEDIDOS ACTIVOS", MAP_WIDTH + 10, SCREEN_HEIGHT - 200, arcade.color.ORANGE, 14, bold=True)
         self.jobs_text = Text("", MAP_WIDTH + 10, SCREEN_HEIGHT - 220, arcade.color.WHITE, 11)
         self.score_title = Text("ESTADÍSTICAS", MAP_WIDTH + 10, SCREEN_HEIGHT - 280, arcade.color.GREEN, 14, bold=True)
         self.score_text = Text("", MAP_WIDTH + 10, SCREEN_HEIGHT - 300, arcade.color.WHITE, 11)
@@ -121,11 +122,12 @@ class MapPlayerView(View):
         self._pending_offer = None
         self._offer_job_id = None
 
-        # RESUME flags
+        # -------- Reanudación (traído del primer archivo) --------
         self._resume_mode = bool(
-            (isinstance(self.state, dict) and self.state.get("__resume_from_save__")) or getattr(self.state,
-                                                                                                 "__resume_from_save__",
-                                                                                                 False))
+            (isinstance(self.state, dict) and self.state.get("__resume_from_save__"))
+            or getattr(self.state, "__resume_from_save__", False)
+        )
+        # cuando cargamos partida, usamos el clima del guardado y lo "congelamos"
         self._freeze_weather = self._resume_mode
         self._resume_weather_state = None
 
@@ -160,17 +162,18 @@ class MapPlayerView(View):
 
             # reanudación: tiempo, clima, posición
             if self._resume_mode:
+                # tiempo -> fast forward hasta elapsed guardado
                 self._fast_forward_elapsed()
 
-                # clima congelado
+                # clima congelado en el estado guardado
                 try:
-                    ws = self.state.get("weather_state") if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                      "weather_state",
-                                                                                                      {})
+                    ws = self.state.get("weather_state") if isinstance(self.state, dict) else getattr(
+                        self.state, "weather_state", {}
+                    )
                     if not ws:
-                        ws = self.state.get("weather_data") if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                         "weather_data",
-                                                                                                         {})
+                        ws = self.state.get("weather_data") if isinstance(self.state, dict) else getattr(
+                            self.state, "weather_data", {}
+                        )
                     self._resume_weather_state = ws or {}
                     if hasattr(self.weather_markov, "apply_external_state"):
                         self.weather_markov.apply_external_state(self._resume_weather_state)
@@ -179,15 +182,13 @@ class MapPlayerView(View):
 
                 # posición desde save
                 try:
-                    px = self.state.get("player_x") if isinstance(self.state, dict) else getattr(self.state, "player_x",
-                                                                                                 None)
-                    py = self.state.get("player_y") if isinstance(self.state, dict) else getattr(self.state, "player_y",
-                                                                                                 None)
+                    px = self.state.get("player_x") if isinstance(self.state, dict) else getattr(self.state, "player_x", None)
+                    py = self.state.get("player_y") if isinstance(self.state, dict) else getattr(self.state, "player_y", None)
                     if px is not None and py is not None:
                         if hasattr(self.player, "set_cell"):
                             self.player.set_cell(int(px), int(py))
                         else:
-                            self.player.cell_x = int(px);
+                            self.player.cell_x = int(px)
                             self.player.cell_y = int(py)
                 except Exception as e:
                     print(f"[RESUME] No se pudo fijar posición: {e}")
@@ -198,7 +199,7 @@ class MapPlayerView(View):
             print(f"Error inicializando sistemas de juego: {e}")
 
     def _fast_forward_elapsed(self):
-        """Empuja el tiempo al elapsed guardado."""
+        """Empuja el tiempo al elapsed guardado. Incluye fallbacks robustos."""
         try:
             elapsed = None
             if isinstance(self.state, dict):
@@ -234,7 +235,7 @@ class MapPlayerView(View):
                     except Exception:
                         pass
 
-            # 3) fallback con offset dinámico
+            # 3) fallback con offset dinámico (monkey-patch)
             try:
                 if hasattr(gm, "get_game_time") and callable(gm.get_game_time):
                     _orig_get_game_time = gm.get_game_time
@@ -326,9 +327,7 @@ class MapPlayerView(View):
 
                         # si estaba recogido, añadir al inventario
                         if job.picked_up:
-                            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                           "inventory",
-                                                                                                           None)
+                            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
                             if inv:
                                 try:
                                     if hasattr(inv, "push"):
@@ -346,66 +345,28 @@ class MapPlayerView(View):
 
         # 4) filtrar pendientes por ids ya aceptados
         accepted_ids = {(r.get("id") or r.get("job_id")) for r in self.accepted_raw_jobs}
-        self.incoming_raw_jobs = [r for r in self.incoming_raw_jobs if
-                                  (r.get("id") or r.get("job_id")) not in accepted_ids]
+        self.incoming_raw_jobs = [r for r in self.incoming_raw_jobs if (r.get("id") or r.get("job_id")) not in accepted_ids]
         print(f"[JOBS] Cargados {len(self.incoming_raw_jobs)} pendientes, {len(self.accepted_raw_jobs)} aceptados")
 
     def _raw_job_id(self, raw: dict) -> str:
         return raw.get("id") or raw.get("job_id") or raw.get("req") or str(raw)
 
-    # ------------------ LÓGICA DE PICKUP Y DROPOFF ------------------
-    def _pickup_nearby(self) -> bool:
-        """
-        Recoge cualquier pedido aceptado y no recogido cuya posición de pickup
-        esté en la misma casilla del jugador o en una adyacente (Manhattan <= 1).
-        Retorna True si se recogió al menos uno.
-        """
-        if not self.job_manager:
-            return False
+    # ------------------ Helpers de dibujo centrado ------------------
+    def _draw_centered_rect_filled(self, cx: float, cy: float, width: float, height: float, color):
+        half_w = width / 2.0
+        half_h = height / 2.0
+        pts = [(cx - half_w, cy - half_h), (cx + half_w, cy - half_h),
+               (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
+        arcade.draw_polygon_filled(pts, color)
 
-        px = int(self.player.cell_x)
-        py = int(self.player.cell_y)
-        picked_any = False
+    def _draw_centered_rect_outline(self, cx: float, cy: float, width: float, height: float, color, border_width=2):
+        half_w = width / 2.0
+        half_h = height / 2.0
+        pts = [(cx - half_w, cy - half_h), (cx + half_w, cy - half_h),
+               (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
+        arcade.draw_polygon_outline(pts, color, border_width)
 
-        try:
-            for job in self.job_manager.get_active_jobs():
-                if not getattr(job, "accepted", False):
-                    continue
-                if getattr(job, "picked_up", False) or getattr(job, "completed", False):
-                    continue
-
-                # obtener coords de pickup robustamente
-                jpx, jpy = self._get_job_pickup_coords(job)
-                if jpx is None or jpy is None:
-                    continue
-
-                # comparar distancia Manhattan
-                if abs(int(jpx) - px) + abs(int(jpy) - py) <= 1:
-                    # marcar como recogido
-                    job.picked_up = True
-                    job.dropoff_visible = True
-                    picked_any = True
-
-                    # Añadir al inventario
-                    inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                         "inventory",
-                                                                                                         None)
-                    if inventory:
-                        try:
-                            if hasattr(inventory, "add"):
-                                inventory.add(job)
-                            elif hasattr(inventory, "push"):
-                                inventory.push(job)
-                        except Exception as e:
-                            print(f"[PICKUP] Error añadiendo al inventario: {e}")
-
-                    print(f"[PICKUP] Paquete {job.id} recogido en {px},{py} (pickup en {jpx},{jpy})")
-
-            return picked_any
-        except Exception as e:
-            print(f"[PICKUP] Error en _pickup_nearby: {e}")
-            return False
-
+    # ------------------ Marcadores de jobs ------------------
     def _get_job_pickup_coords(self, job):
         """Obtiene las coordenadas de pickup de un job de manera robusta"""
         try:
@@ -434,65 +395,33 @@ class MapPlayerView(View):
                 pass
         return None, None
 
-    def _try_deliver_at_position(self, px: int, py: int) -> bool:
-        """
-        Intenta entregar paquetes en la posición actual del jugador.
-        Retorna True si se entregó al menos un paquete.
-        """
+    def _draw_job_markers(self):
+        """Dibuja los marcadores de pickup y dropoff en el mapa"""
         if not self.job_manager:
-            return False
-
-        delivered_any = False
-
+            return
         try:
-            for job in self.job_manager.get_active_jobs():
-                if not getattr(job, "accepted", False) or not getattr(job, "picked_up", False):
-                    continue
-                if getattr(job, "completed", False):
-                    continue
+            for job in self.job_manager.all_jobs():
+                # pickup: aceptado y no recogido
+                if getattr(job, "accepted", False) and not getattr(job, "picked_up", False):
+                    px_c, py_c = self._get_job_pickup_coords(job)
+                    if px_c is not None and py_c is not None:
+                        px, py = self._cell_to_pixel(int(px_c), int(py_c))
+                        arcade.draw_circle_filled(px, py, TILE_SIZE * 0.4, arcade.color.GOLD)
+                        arcade.draw_circle_outline(px, py, TILE_SIZE * 0.4, arcade.color.BLACK, 2)
+                        job_label = getattr(job, "id", None) or (getattr(job, "raw", {}) or {}).get("id", "PICKUP")
+                        Text(f"{job_label}", px - 18, py + 15, arcade.color.BLACK, 8).draw()
 
-                # obtener coords de dropoff
-                dx, dy = self._get_job_dropoff_coords(job)
-                if dx is None or dy is None:
-                    continue
-
-                # verificar si está en la misma celda de dropoff
-                if int(dx) == px and int(dy) == py:
-                    # marcar como completado
-                    job.completed = True
-                    delivered_any = True
-
-                    # Remover del inventario
-                    inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                         "inventory",
-                                                                                                         None)
-                    if inventory:
-                        try:
-                            if hasattr(inventory, "remove"):
-                                inventory.remove(job)
-                            elif hasattr(inventory, "deque"):
-                                # Buscar y remover el job del deque
-                                for item in list(inventory.deque):
-                                    if getattr(item, "id", None) == job.id:
-                                        inventory.deque.remove(item)
-                                        break
-                        except Exception as e:
-                            print(f"[DELIVER] Error removiendo del inventario: {e}")
-
-                    # Añadir recompensa
-                    payout = getattr(job, "payout", 0) or (getattr(job, "raw", {}) or {}).get("payout", 0)
-                    if isinstance(self.state, dict):
-                        self.state["money"] = self.state.get("money", 0) + payout
-                    else:
-                        if hasattr(self.state, "money"):
-                            self.state.money += payout
-
-                    print(f"[DELIVER] Paquete {job.id} entregado en {px},{py} +${payout}")
-
-            return delivered_any
+                # dropoff: recogido y no entregado
+                if getattr(job, "picked_up", False) and not getattr(job, "completed", False):
+                    dx_c, dy_c = self._get_job_dropoff_coords(job)
+                    if dx_c is not None and dy_c is not None:
+                        dx, dy = self._cell_to_pixel(int(dx_c), int(dy_c))
+                        self._draw_centered_rect_filled(dx, dy, TILE_SIZE * 0.6, TILE_SIZE * 0.6, arcade.color.RED)
+                        self._draw_centered_rect_outline(dx, dy, TILE_SIZE * 0.6, TILE_SIZE * 0.6, arcade.color.BLACK, 2)
+                        drop_label = getattr(job, "id", None) or (getattr(job, "raw", {}) or {}).get("id", "DROPOFF")
+                        Text(f"{drop_label}", dx - 25, dy + 15, arcade.color.WHITE, 8).draw()
         except Exception as e:
-            print(f"[DELIVER] Error en _try_deliver_at_position: {e}")
-            return False
+            print(f"[ERROR] Dibujando marcadores: {e}")
 
     # ------------------ Notificaciones / Jobs ------------------
     def _maybe_start_notification(self):
@@ -528,11 +457,9 @@ class MapPlayerView(View):
         jid = self._raw_job_id(raw)
 
         # Verificar capacidad del inventario
-        inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
-                                                                                             None)
+        inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
         new_weight = float(raw.get("weight", 1.0))
-        if inventory and (
-                getattr(inventory, "current_weight", 0.0) + new_weight > getattr(inventory, "max_weight", 10.0)):
+        if inventory and (getattr(inventory, "current_weight", 0.0) + new_weight > getattr(inventory, "max_weight", 10.0)):
             self.show_notification("❌ Capacidad insuficiente")
             self.rejected_raw_jobs.append(raw)
             self.job_notification_active = False
@@ -552,7 +479,7 @@ class MapPlayerView(View):
 
         self.accepted_job_ids.add(jid)
         self.job_notification_active = False
-        self.job_notification_data = None
+        self.job_notification_data = None  # <-- corregida la indentación
         self.next_spawn_timer = self.NEXT_SPAWN_AFTER_ACCEPT
         self.show_notification(f"✅ Pedido {jid} aceptado")
 
@@ -571,54 +498,6 @@ class MapPlayerView(View):
         y = (len(self.game_map.grid) - 1 - cy) * TILE_SIZE + TILE_SIZE // 2
         return x, y
 
-    def _draw_centered_rect_filled(self, cx: float, cy: float, width: float, height: float, color):
-        """Helper para dibujar rectángulos centrados"""
-        half_w = width / 2.0
-        half_h = height / 2.0
-        pts = [(cx - half_w, cy - half_h), (cx + half_w, cy - half_h),
-               (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
-        arcade.draw_polygon_filled(pts, color)
-
-    def _draw_centered_rect_outline(self, cx: float, cy: float, width: float, height: float, color, border_width=2):
-        """Helper para dibujar contornos de rectángulos centrados"""
-        half_w = width / 2.0
-        half_h = height / 2.0
-        pts = [(cx - half_w, cy - half_h), (cx + half_w, cy - half_h),
-               (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
-        arcade.draw_polygon_outline(pts, color, border_width)
-
-    def _draw_job_markers(self):
-        """Dibuja los marcadores de pickup y dropoff en el mapa"""
-        if not self.job_manager:
-            return
-        try:
-            for job in self.job_manager.all_jobs():
-                # Dibujar pickup si aceptado y no recogido
-                if getattr(job, "accepted", False) and not getattr(job, "picked_up", False):
-                    px_c, py_c = self._get_job_pickup_coords(job)
-                    if px_c is not None and py_c is not None:
-                        px, py = self._cell_to_pixel(int(px_c), int(py_c))
-                        # marcador de pickup: círculo dorado
-                        arcade.draw_circle_filled(px, py, TILE_SIZE * 0.4, arcade.color.GOLD)
-                        arcade.draw_circle_outline(px, py, TILE_SIZE * 0.4, arcade.color.BLACK, 2)
-                        # mostrar el id real del pedido
-                        job_label = getattr(job, "id", None) or (getattr(job, "raw", {}) or {}).get("id", "PICKUP")
-                        Text(f"{job_label}", px - 18, py + 15, arcade.color.BLACK, 8).draw()
-
-                # Dibujar dropoff si recogido pero no entregado
-                if getattr(job, "picked_up", False) and not getattr(job, "completed", False):
-                    dx_c, dy_c = self._get_job_dropoff_coords(job)
-                    if dx_c is not None and dy_c is not None:
-                        dx, dy = self._cell_to_pixel(int(dx_c), int(dy_c))
-                        # marcador de dropoff: rectángulo rojo
-                        self._draw_centered_rect_filled(dx, dy, TILE_SIZE * 0.6, TILE_SIZE * 0.6, arcade.color.RED)
-                        self._draw_centered_rect_outline(dx, dy, TILE_SIZE * 0.6, TILE_SIZE * 0.6, arcade.color.BLACK,
-                                                         2)
-                        drop_label = getattr(job, "id", None) or (getattr(job, "raw", {}) or {}).get("id", "DROPOFF")
-                        Text(f"{drop_label}", dx - 25, dy + 15, arcade.color.WHITE, 8).draw()
-        except Exception as e:
-            print(f"[ERROR] Dibujando marcadores: {e}")
-
     def _draw_job_notification(self):
         if not self.job_notification_active or not self.job_notification_data:
             return
@@ -629,11 +508,11 @@ class MapPlayerView(View):
         priority = raw.get("priority", 1)
         description = raw.get("description", "Sin descripción")
 
-        panel_width = 400;
+        panel_width = 400
         panel_height = 250
-        left = SCREEN_WIDTH - panel_width - 20;
+        left = SCREEN_WIDTH - panel_width - 20
         bottom = 100
-        right = left + panel_width;
+        right = left + panel_width
         top = bottom + panel_height
 
         _draw_rect_lrbt_filled(left, right, bottom, top, arcade.color.DARK_BLUE)
@@ -651,7 +530,7 @@ class MapPlayerView(View):
             try:
                 time_remaining = self.game_manager.get_job_time_remaining(raw)
                 if time_remaining != float('inf'):
-                    minutes = int(time_remaining // 60);
+                    minutes = int(time_remaining // 60)
                     seconds = int(time_remaining % 60)
                     time_color = arcade.color.GREEN if time_remaining > 300 else arcade.color.ORANGE if time_remaining > 60 else arcade.color.RED
                     Text(f"Tiempo límite: {minutes:02d}:{seconds:02d}", left + 15, time_y, time_color, 12).draw()
@@ -663,8 +542,7 @@ class MapPlayerView(View):
         Text(f"Desc: {desc}", left + 15, time_y, arcade.color.LIGHT_GRAY, 10).draw()
         controls_y = bottom + 30
         Text("(A) Aceptar  (R) Rechazar", left + 15, controls_y, arcade.color.YELLOW, 12).draw()
-        Text(f"Decidir en: {int(self.job_notification_timer)}s", left + 15, controls_y - 20, arcade.color.RED,
-             12).draw()
+        Text(f"Decidir en: {int(self.job_notification_timer)}s", left + 15, controls_y - 20, arcade.color.RED, 12).draw()
 
     def on_show(self) -> None:
         arcade.set_background_color(arcade.color.DARK_SLATE_GRAY)
@@ -682,7 +560,7 @@ class MapPlayerView(View):
             pass
         self._draw_job_notification()
 
-        # Dibujar notificación activa
+        # Dibujar notificación activa (del segundo archivo)
         if self.active_notification and self.notification_timer > 0:
             self.notification_text.text = self.active_notification
             self.notification_text.draw()
@@ -707,17 +585,16 @@ class MapPlayerView(View):
             ws = self.state.get("weather_state") or self.state.get("weather_data", {})
         else:
             ws = getattr(self.state, "weather_state", None) or getattr(self.state, "weather_data", {})
-        cond = ws.get("condition", "?");
-        intensity = ws.get("intensity", "?");
+        cond = ws.get("condition", "?")
+        intensity = ws.get("intensity", "?")
         multiplier = ws.get("multiplier", 1.0)
         self.weather_text.text = f"Clima: {cond}\nIntensidad: {intensity}\nVelocidad: {multiplier:.0%}"
         self.weather_text.draw()
 
         self.inventory_title.draw()
-        inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                   "inventory", None)
+        inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
         if inventory:
-            weight = getattr(inventory, "current_weight", 0);
+            weight = getattr(inventory, "current_weight", 0)
             max_weight = getattr(inventory, "max_weight", 10)
             items = []
             try:
@@ -728,15 +605,35 @@ class MapPlayerView(View):
                     if hasattr(inventory, 'deque'):
                         for item in inventory.deque:
                             inventory_items.append(getattr(item, "val", item))
-                for job in inventory_items:
+                # (nota: sort visual según modo; no alteramos estructura real)
+                if self.inventory_sort_mode == "priority":
+                    try:
+                        inventory_items = sorted(
+                            inventory_items,
+                            key=lambda j: getattr(j, "priority", None) or (getattr(j, "raw", {}) or {}).get("priority", 999)
+                        )
+                    except Exception:
+                        pass
+                elif self.inventory_sort_mode == "deadline":
+                    try:
+                        inventory_items = sorted(
+                            inventory_items,
+                            key=lambda j: getattr(j, "deadline", None) or (getattr(j, "raw", {}) or {}).get("deadline", 999999)
+                        )
+                    except Exception:
+                        pass
+
+                # ventana de 4 ítems con offset inventory_view_index
+                view = inventory_items[self.inventory_view_index:self.inventory_view_index + 4]
+                for job in view:
                     job_id = getattr(job, "id", job.get("id") if isinstance(job, dict) else str(job))
                     items.append(f"- {job_id}")
             except Exception:
                 items = ["- Error cargando"]
-            inventory_info = f"Peso: {weight}/{max_weight}kg\n" + "\n".join(items[:4])
+            inventory_info = f"Peso: {weight}/{max_weight}kg\n" + "\n".join(items or ["- Vacío"])
         else:
             inventory_info = "Peso: 0/10kg\n- Vacío"
-        self.inventory_text.text = inventory_info;
+        self.inventory_text.text = inventory_info
         self.inventory_text.draw()
 
         self.jobs_title.draw()
@@ -746,7 +643,7 @@ class MapPlayerView(View):
                 jobs_info = []
                 for job in active_jobs[:4]:
                     status = "✓" if getattr(job, "picked_up", False) else "📦"
-                    job_id = getattr(job, "id", "Unknown");
+                    job_id = getattr(job, "id", "Unknown")
                     payout = getattr(job, "payout", 0)
                     job_text = f"- {job_id} {status}"
                     job_text += " → 🎯" if getattr(job, "picked_up", False) else f" (${payout})"
@@ -768,10 +665,14 @@ class MapPlayerView(View):
 
         if self.game_manager and hasattr(self.game_manager, 'get_time_remaining'):
             time_remaining = self.game_manager.get_time_remaining()
-            minutes = int(time_remaining // 60);
+            minutes = int(time_remaining // 60)
             seconds = int(time_remaining % 60)
             self.timer_text.text = f"⏰ {minutes:02d}:{seconds:02d}"
-            self.timer_text.color = arcade.color.GREEN if time_remaining >= 600 else arcade.color.ORANGE if time_remaining >= 300 else arcade.color.RED
+            self.timer_text.color = (
+                arcade.color.GREEN if time_remaining >= 600
+                else arcade.color.ORANGE if time_remaining >= 300
+                else arcade.color.RED
+            )
         else:
             self.timer_text.text = "⏰ 15:00"
         self.timer_text.draw()
@@ -780,8 +681,8 @@ class MapPlayerView(View):
         if self.score_system:
             try:
                 stats = self.score_system.get_current_stats()
-                tr = stats.get('time_remaining', 0);
-                minutes = int(tr // 60);
+                tr = stats.get('time_remaining', 0)
+                minutes = int(tr // 60)
                 seconds = int(tr % 60)
                 self.score_text.text = (f"Entregas: {stats['deliveries_completed']}\n"
                                         f"A tiempo: {stats['on_time_deliveries']}\n"
@@ -794,10 +695,10 @@ class MapPlayerView(View):
         self.score_text.draw()
 
         stamina_val = getattr(self.player_stats, "stamina", 100.0)
-        bar_w, bar_h = 200, 20;
-        left = MAP_WIDTH + 50;
+        bar_w, bar_h = 200, 20
+        left = MAP_WIDTH + 50
         bottom = 30
-        right = left + bar_w;
+        right = left + bar_w
         top = bottom + bar_h
         _draw_rect_lrbt_filled(left, right, bottom, top, arcade.color.DARK_SLATE_GRAY)
         pct = max(0.0, min(1.0, stamina_val / 100.0))
@@ -813,30 +714,28 @@ class MapPlayerView(View):
     def _draw_time_panel(self):
         if not self.game_manager:
             return
-        panel_x = 10;
-        panel_y = SCREEN_HEIGHT - 100;
-        panel_width = 300;
+        panel_x = 10
+        panel_y = SCREEN_HEIGHT - 100
+        panel_width = 300
         panel_height = 90
-        _draw_rect_lrbt_filled(panel_x, panel_x + panel_width, panel_y - panel_height, panel_y,
-                               arcade.color.DARK_SLATE_GRAY)
+        _draw_rect_lrbt_filled(panel_x, panel_x + panel_width, panel_y - panel_height, panel_y, arcade.color.DARK_SLATE_GRAY)
         _draw_rect_lrbt_outline(panel_x, panel_x + panel_width, panel_y - panel_height, panel_y, arcade.color.BLUE, 2)
         Text("⏰ TIEMPO DE SIMULACIÓN", panel_x + 10, panel_y - 20, arcade.color.GOLD, 12, bold=True).draw()
         try:
             current_time = self.game_manager.get_game_time()
-            minutes = int(current_time // 60);
+            minutes = int(current_time // 60)
             seconds = int(current_time % 60)
             time_remaining = self.game_manager.get_time_remaining()
-            rem_minutes = int(time_remaining // 60);
+            rem_minutes = int(time_remaining // 60)
             rem_seconds = int(time_remaining % 60)
             current_map_time = self.game_manager.get_current_map_time()
-            time_str = current_map_time.strftime("%H:%M:%S");
+            time_str = current_map_time.strftime("%H:%M:%S")
             date_str = current_map_time.strftime("%Y-%m-%d")
             Text(f"Hora: {time_str}", panel_x + 15, panel_y - 40, arcade.color.WHITE, 11).draw()
             Text(f"Fecha: {date_str}", panel_x + 15, panel_y - 55, arcade.color.WHITE, 11).draw()
             Text(f"Transcurrido: {minutes:02d}:{seconds:02d}", panel_x + 15, panel_y - 70, arcade.color.CYAN, 11).draw()
             time_color = arcade.color.GREEN if time_remaining >= 600 else arcade.color.ORANGE if time_remaining >= 300 else arcade.color.RED
-            Text(f"Restante: {rem_minutes:02d}:{rem_seconds:02d}", panel_x + 15, panel_y - 85, time_color, 11,
-                 bold=True).draw()
+            Text(f"Restante: {rem_minutes:02d}:{rem_seconds:02d}", panel_x + 15, panel_y - 85, time_color, 11, bold=True).draw()
         except Exception:
             pass
 
@@ -860,7 +759,7 @@ class MapPlayerView(View):
         if not self.job_notification_active:
             self._maybe_start_notification()
 
-        # Temporal general
+        # Temporal general de notificaciones
         if self.active_notification and self.notification_timer > 0:
             self.notification_timer -= dt
             if self.notification_timer <= 0:
@@ -868,21 +767,19 @@ class MapPlayerView(View):
 
         # Movimiento del jugador
         input_active = (time.time() - self._last_input_time) < self.INPUT_ACTIVE_WINDOW
-        inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                   "inventory", None)
+        inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
         was_moving = bool(self.player.moving)
 
         # Actualizar jugador
         try:
-            self.player.update(dt, player_stats=self.player_stats, weather_system=self.weather_markov,
-                               inventory=inventory)
+            self.player.update(dt, player_stats=self.player_stats, weather_system=self.weather_markov, inventory=inventory)
         except Exception:
             try:
                 self.player.update(dt)
             except Exception:
                 pass
 
-        # LÓGICA DE PICKUP Y DROPOFF AL MOVERSE
+        # LÓGICA DE PICKUP Y DROPOFF al detenerse
         if was_moving and not self.player.moving:
             px = int(self.player.cell_x)
             py = int(self.player.cell_y)
@@ -931,15 +828,115 @@ class MapPlayerView(View):
         except Exception as e:
             print(f"Error actualizando player_stats: {e}")
 
-        # Actualizar clima
+        # -------- Clima: respeta congelado al reanudar (del primer archivo) --------
         try:
-            self.weather_markov.update(dt)
-            self.weather_markov.apply_to_game_state(self.state)
-            ws = self.state.get("weather_state", {}) if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                  "weather_state", {})
-            self.weather_renderer.update(dt, ws)
+            if self._freeze_weather:
+                # usar el estado de clima del guardado sin avanzar la cadena de Markov
+                ws = self._resume_weather_state or (
+                    self.state.get("weather_state") if isinstance(self.state, dict) else getattr(self.state, "weather_state", {})
+                ) or {}
+                self.weather_renderer.update(dt, ws)
+            else:
+                self.weather_markov.update(dt)
+                self.weather_markov.apply_to_game_state(self.state)
+                ws = self.state.get("weather_state", {}) if isinstance(self.state, dict) else getattr(self.state, "weather_state", {})
+                self.weather_renderer.update(dt, ws)
         except Exception as e:
             print(f"Error actualizando clima: {e}")
+
+    # ------------------ Lógica de pickup/dropoff ------------------
+    def _pickup_nearby(self) -> bool:
+        """Recoge pedidos aceptados y no recogidos en celda actual o adyacentes (Manhattan <= 1)."""
+        if not self.job_manager:
+            return False
+
+        px = int(self.player.cell_x)
+        py = int(self.player.cell_y)
+        picked_any = False
+
+        try:
+            for job in self.job_manager.get_active_jobs():
+                if not getattr(job, "accepted", False):
+                    continue
+                if getattr(job, "picked_up", False) or getattr(job, "completed", False):
+                    continue
+
+                jpx, jpy = self._get_job_pickup_coords(job)
+                if jpx is None or jpy is None:
+                    continue
+
+                if abs(int(jpx) - px) + abs(int(jpy) - py) <= 1:
+                    job.picked_up = True
+                    job.dropoff_visible = True
+                    picked_any = True
+
+                    inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                    if inventory:
+                        try:
+                            if hasattr(inventory, "add"):
+                                inventory.add(job)
+                            elif hasattr(inventory, "push"):
+                                inventory.push(job)
+                        except Exception as e:
+                            print(f"[PICKUP] Error añadiendo al inventario: {e}")
+
+                    print(f"[PICKUP] Paquete {getattr(job,'id','?')} recogido en {px},{py} (pickup en {jpx},{jpy})")
+
+            return picked_any
+        except Exception as e:
+            print(f"[PICKUP] Error en _pickup_nearby: {e}")
+            return False
+
+    def _try_deliver_at_position(self, px: int, py: int) -> bool:
+        """Entrega paquetes recogidos si el jugador está exactamente en el dropoff."""
+        if not self.job_manager:
+            return False
+
+        delivered_any = False
+
+        try:
+            for job in self.job_manager.get_active_jobs():
+                if not getattr(job, "accepted", False) or not getattr(job, "picked_up", False):
+                    continue
+                if getattr(job, "completed", False):
+                    continue
+
+                dx, dy = self._get_job_dropoff_coords(job)
+                if dx is None or dy is None:
+                    continue
+
+                if int(dx) == px and int(dy) == py:
+                    job.completed = True
+                    delivered_any = True
+
+                    # Remover del inventario
+                    inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                    if inventory:
+                        try:
+                            if hasattr(inventory, "remove"):
+                                inventory.remove(job)
+                            elif hasattr(inventory, "deque"):
+                                for item in list(inventory.deque):
+                                    if getattr(item, "id", None) == getattr(job, "id", None):
+                                        inventory.deque.remove(item)
+                                        break
+                        except Exception as e:
+                            print(f"[DELIVER] Error removiendo del inventario: {e}")
+
+                    # Añadir recompensa
+                    payout = getattr(job, "payout", 0) or (getattr(job, "raw", {}) or {}).get("payout", 0)
+                    if isinstance(self.state, dict):
+                        self.state["money"] = self.state.get("money", 0) + payout
+                    else:
+                        if hasattr(self.state, "money"):
+                            self.state.money += payout
+
+                    print(f"[DELIVER] Paquete {getattr(job,'id','?')} entregado en {px},{py} +${payout}")
+
+            return delivered_any
+        except Exception as e:
+            print(f"[DELIVER] Error en _try_deliver_at_position: {e}")
+            return False
 
     # ------------------ Input ------------------
     def on_key_press(self, key: int, modifiers: int) -> None:
@@ -964,7 +961,7 @@ class MapPlayerView(View):
                 print(f"[INPUT] Error recogiendo paquete (P): {e}")
             return
 
-        # Navegación y aceptación
+        # Aceptación / navegación
         if key == arcade.key.A:
             if self.job_notification_active and self.job_notification_data:
                 self._accept_notification()
@@ -986,9 +983,7 @@ class MapPlayerView(View):
         if key == arcade.key.D:
             if self.job_notification_active and self.job_notification_data:
                 return
-            inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state,
-                                                                                                       "inventory",
-                                                                                                       None)
+            inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
             if inventory:
                 try:
                     if hasattr(inventory, 'get_deque_values'):
@@ -1077,18 +1072,21 @@ class MapPlayerView(View):
         # Apply facing
         self._apply_facing()
 
-        # If game manager intercepts movement, use it
-        if self.game_manager and hasattr(self.game_manager, 'handle_Player_movement'):
+        # Si el GameManager intercepta movimiento, usarlo (aceptar dos variantes de nombre)
+        if self.game_manager:
             try:
-                self.game_manager.handle_player_movement(dx, dy)
-                return
+                if hasattr(self.game_manager, 'handle_player_movement'):
+                    self.game_manager.handle_player_movement(dx, dy)
+                    return
+                if hasattr(self.game_manager, 'handle_Player_movement'):
+                    self.game_manager.handle_Player_movement(dx, dy)
+                    return
             except Exception:
                 pass
 
         moved = self.player.move_by(dx, dy, self.game_map)
         if not moved:
-            if self.player.bound_stats and hasattr(self.player.bound_stats,
-                                                   "can_move") and not self.player.bound_stats.can_move():
+            if self.player.bound_stats and hasattr(self.player.bound_stats, "can_move") and not self.player.bound_stats.can_move():
                 self.show_notification("[INFO] No puedes moverte: resistencia agotada.")
             else:
                 self.show_notification("Movimiento bloqueado")
