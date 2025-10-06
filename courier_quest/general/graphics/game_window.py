@@ -13,11 +13,11 @@ from graphics.weather_renderer import WeatherRenderer
 from game.game_manager import GameManager
 from game.jobs_manager import JobManager
 
-# --- NUEVO: import robusto de Inventory para partidas nuevas ---
+# Import robusto de Inventory para partidas nuevas (si existe)
 try:
-    from game.inventory import Inventory  # si existe, lo usamos
+    from game.inventory import Inventory
 except Exception:
-    Inventory = None  # seguimos funcionando aunque no esté disponible
+    Inventory = None
 
 SCREEN_WIDTH = 1150
 SCREEN_HEIGHT = 800
@@ -56,7 +56,7 @@ class MapPlayerView(View):
         else:
             self.player_stats = getattr(self.state, "player_stats", None) or PlayerStats()
 
-        # --- NUEVO: asegurar inventario al crear partida nueva ---
+        # asegurar inventario al crear partida nueva
         self._ensure_inventory()
 
         # mapa
@@ -139,9 +139,12 @@ class MapPlayerView(View):
         self._freeze_weather = self._resume_mode
         self._resume_weather_state = None
 
+        # Permitir dropoff adyacente (Manhattan <= 1)
+        self.DROPOFF_ADJACENT = True
+
         self._initialize_game_systems()
 
-    # --- NUEVO: creador/asegurador de inventario para partidas nuevas ---
+    # creador/asegurador de inventario para partidas nuevas
     def _ensure_inventory(self):
         try:
             if isinstance(self.state, dict):
@@ -161,7 +164,7 @@ class MapPlayerView(View):
             self.game_manager = GameManager()
             self.job_manager = JobManager()
 
-            # Antes de nada, garantizar inventario presente también aquí
+            # garantizar inventario también aquí
             self._ensure_inventory()
 
             # datos desde state
@@ -386,35 +389,58 @@ class MapPlayerView(View):
                (cx + half_w, cy + half_h), (cx - half_w, cy + half_h)]
         arcade.draw_polygon_outline(pts, color, border_width)
 
-    # ------------------ Marcadores de jobs ------------------
+    # ------------------ Normalizador y getters de coords ------------------
+    def _coerce_xy(self, val):
+        """
+        Convierte 'val' a (int x, int y) si es posible.
+        Acepta: (x,y), [x,y], {"x":x,"y":y} / {"cx":x,"cy":y}, "x,y"
+        """
+        try:
+            if val is None:
+                return None, None
+            if isinstance(val, (list, tuple)) and len(val) >= 2:
+                return int(float(val[0])), int(float(val[1]))
+            if isinstance(val, dict):
+                x = val.get("x", val.get("cx", None))
+                y = val.get("y", val.get("cy", None))
+                if x is not None and y is not None:
+                    return int(float(x)), int(float(y))
+            if isinstance(val, str) and "," in val:
+                sx, sy = val.split(",", 1)
+                return int(float(sx.strip())), int(float(sy.strip()))
+        except Exception:
+            pass
+        return None, None
+
     def _get_job_pickup_coords(self, job):
         """Obtiene las coordenadas de pickup de un job de manera robusta"""
         try:
-            return tuple(job.pickup)
+            x, y = self._coerce_xy(getattr(job, "pickup", None))
+            if x is not None:
+                return x, y
         except Exception:
-            try:
-                raw = getattr(job, "raw", {}) or {}
-                pickup_raw = raw.get("pickup", None)
-                if pickup_raw:
-                    return tuple(pickup_raw)
-            except Exception:
-                pass
-        return None, None
+            pass
+        try:
+            raw = getattr(job, "raw", {}) or {}
+            return self._coerce_xy(raw.get("pickup", None))
+        except Exception:
+            return (None, None)
 
     def _get_job_dropoff_coords(self, job):
         """Obtiene las coordenadas de dropoff de un job de manera robusta"""
         try:
-            return tuple(job.dropoff)
+            x, y = self._coerce_xy(getattr(job, "dropoff", None))
+            if x is not None:
+                return x, y
         except Exception:
-            try:
-                raw = getattr(job, "raw", {}) or {}
-                dropoff_raw = raw.get("dropoff", None)
-                if dropoff_raw:
-                    return tuple(dropoff_raw)
-            except Exception:
-                pass
-        return None, None
+            pass
+        try:
+            raw = getattr(job, "raw", {}) or {}
+            return self._coerce_xy(raw.get("dropoff", None))
+        except Exception:
+            return (None, None)
 
+    # ------------------ Marcadores de jobs ------------------
     def _draw_job_markers(self):
         """Dibuja los marcadores de pickup y dropoff en el mapa"""
         if not self.job_manager:
@@ -486,11 +512,9 @@ class MapPlayerView(View):
             self.job_notification_data = None
             return
 
-        # Aceptar el trabajo — ***FIX: NO forzar pickup_override***
+        # Aceptar el trabajo — respetar pickup/dropoff del JSON (sin override)
         if self.job_manager:
             try:
-                # Antes: self.job_manager.add_job_from_raw(raw, (self.player.cell_x, self.player.cell_y))
-                # Ahora: respetar pickup/dropoff del JSON
                 self.job_manager.add_job_from_raw(raw)
                 job = self.job_manager.get_job(jid)
                 if job:
@@ -789,7 +813,7 @@ class MapPlayerView(View):
 
         # Movimiento del jugador
         input_active = (time.time() - self._last_input_time) < self.INPUT_ACTIVE_WINDOW
-        # --- por si alguien borró el inventario del estado en caliente:
+        # por si alguien borró el inventario del estado en caliente:
         self._ensure_inventory()
         inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
         was_moving = bool(self.player.moving)
@@ -825,10 +849,26 @@ class MapPlayerView(View):
             if picked_up:
                 self.show_notification("¡Paquete recogido! Ve al punto de entrega.")
 
-            # 2. Intentar entrega (solo misma celda exacta)
-            delivered = self._try_deliver_at_position(px, py)
-            if delivered:
-                self.show_notification("¡Pedido entregado! +$")
+            # 2. Intentar entrega (primero GameManager, luego fallback local)
+            delivered = False
+            if self.game_manager and hasattr(self.game_manager, 'try_deliver_at'):
+                try:
+                    result = self.game_manager.try_deliver_at(px, py)
+                    if result:
+                        delivered = True
+                        if isinstance(result, dict):
+                            jid = result.get('job_id', '¿?')
+                            pay = result.get('pay', 0)
+                            self.show_notification(f"¡Pedido {jid} entregado!\n+${pay:.0f}")
+                        else:
+                            self.show_notification("¡Pedido entregado! +$")
+                except Exception as e:
+                    print(f"Error deliver (GameManager): {e}")
+
+            if not delivered:
+                delivered = self._try_deliver_at_position(px, py)
+                if delivered:
+                    self.show_notification("¡Pedido entregado! +$")
 
         # Actualizar player_stats
         try:
@@ -867,7 +907,7 @@ class MapPlayerView(View):
         except Exception as e:
             print(f"Error actualizando clima: {e}")
 
-    # ------------------ Lógica de pickup/dropoff ------------------
+    # ------------------ Lógica de pickup/dropoff (fallback local) ------------------
     def _pickup_nearby(self) -> bool:
         """Recoge pedidos aceptados y no recogidos en celda actual o adyacentes (Manhattan <= 1)."""
         if not self.job_manager:
@@ -911,7 +951,7 @@ class MapPlayerView(View):
             return False
 
     def _try_deliver_at_position(self, px: int, py: int) -> bool:
-        """Entrega paquetes recogidos si el jugador está exactamente en el dropoff."""
+        """Entrega paquetes recogidos si el jugador está en el dropoff (o adyacente si está habilitado)."""
         if not self.job_manager:
             return False
 
@@ -928,7 +968,12 @@ class MapPlayerView(View):
                 if dx is None or dy is None:
                     continue
 
-                if int(dx) == px and int(dy) == py:
+                cond = (
+                    abs(int(dx) - px) + abs(int(dy) - py) <= 1
+                    if getattr(self, "DROPOFF_ADJACENT", False)
+                    else (int(dx) == px and int(dy) == py)
+                )
+                if cond:
                     job.completed = True
                     delivered_any = True
 
@@ -954,7 +999,7 @@ class MapPlayerView(View):
                         if hasattr(self.state, "money"):
                             self.state.money += payout
 
-                    print(f"[DELIVER] Paquete {getattr(job,'id','?')} entregado en {px},{py} +${payout}")
+                    print(f"[DELIVER] Paquete {getattr(job,'id','?')} entregado cerca/en {px},{py} +${payout}")
 
             return delivered_any
         except Exception as e:
@@ -982,6 +1027,34 @@ class MapPlayerView(View):
                     self.show_notification("No hay paquete para recoger aquí o adyacente.")
             except Exception as e:
                 print(f"[INPUT] Error recogiendo paquete (P): {e}")
+            return
+
+        # Forzar intento de entrega con la tecla E
+        if key == arcade.key.E:
+            px, py = int(self.player.cell_x), int(self.player.cell_y)
+            delivered = False
+
+            # 1) Intento con GameManager (si tiene reglas propias)
+            if self.game_manager and hasattr(self.game_manager, 'try_deliver_at'):
+                try:
+                    result = self.game_manager.try_deliver_at(px, py)
+                    if result:
+                        delivered = True
+                        if isinstance(result, dict):
+                            jid = result.get('job_id', '¿?')
+                            pay = result.get('pay', 0)
+                            self.show_notification(f"¡Pedido {jid} entregado!\n+${pay:.0f}")
+                        else:
+                            self.show_notification("¡Pedido entregado! +$")
+                except Exception as e:
+                    print(f"[INPUT] Error deliver (E, GM): {e}")
+
+            # 2) Fallback local (misma casilla o adyacente, según flag)
+            if not delivered:
+                if self._try_deliver_at_position(px, py):
+                    self.show_notification("¡Pedido entregado! +$")
+                else:
+                    self.show_notification("No hay entrega aquí.")
             return
 
         # Aceptación / navegación
@@ -1154,4 +1227,3 @@ class MapPlayerView(View):
         except Exception as e:
             print(f"Error mostrando oferta: {e}")
             self._pending_offer = None
-
