@@ -12,6 +12,7 @@ from graphics.weather_renderer import WeatherRenderer
 
 from game.game_manager import GameManager
 from game.jobs_manager import JobManager
+from game.inventory import Inventory  # ⬅️ NUEVO: aseguramos inventario
 
 SCREEN_WIDTH = 1150
 SCREEN_HEIGHT = 800
@@ -38,19 +39,37 @@ class MapPlayerView(View):
         self.job_manager: Any = None
         self.score_system: Any = None
 
-        # extras del segundo: navegación/orden de inventario
+        # Navegación/orden del inventario (mejoras del segundo archivo)
         self.inventory_view_index = 0
         self.inventory_sort_mode = "normal"
 
-        # player stats
+        # ---------- PlayerStats ----------
         if isinstance(self.state, dict):
             if "player_stats" not in self.state or self.state.get("player_stats") is None:
                 self.state["player_stats"] = PlayerStats()
             self.player_stats: PlayerStats = self.state["player_stats"]
         else:
             self.player_stats = getattr(self.state, "player_stats", None) or PlayerStats()
+            if not hasattr(self.state, "player_stats"):
+                try:
+                    setattr(self.state, "player_stats", self.player_stats)
+                except Exception:
+                    pass
 
-        # mapa
+        # ---------- INVENTORY: crear si no existe (FALLABA EN PARTIDA NUEVA) ----------
+        try:
+            if isinstance(self.state, dict):
+                if "inventory" not in self.state or self.state.get("inventory") is None:
+                    self.state["inventory"] = Inventory()
+                    print("[INIT] Inventario creado (dict).")
+            else:
+                if not hasattr(self.state, "inventory") or getattr(self.state, "inventory", None) is None:
+                    setattr(self.state, "inventory", Inventory())
+                    print("[INIT] Inventario creado (obj).")
+        except Exception as e:
+            print(f"[INIT] No se pudo crear inventario: {e}")
+
+        # ---------- Mapa ----------
         if isinstance(self.state, dict):
             cm = self.state.get("map_data") or self.state.get("city_map") or {}
         else:
@@ -122,12 +141,11 @@ class MapPlayerView(View):
         self._pending_offer = None
         self._offer_job_id = None
 
-        # -------- Reanudación (traído del primer archivo) --------
+        # -------- Reanudación (clima congelado) --------
         self._resume_mode = bool(
             (isinstance(self.state, dict) and self.state.get("__resume_from_save__"))
             or getattr(self.state, "__resume_from_save__", False)
         )
-        # cuando cargamos partida, usamos el clima del guardado y lo "congelamos"
         self._freeze_weather = self._resume_mode
         self._resume_weather_state = None
 
@@ -162,10 +180,9 @@ class MapPlayerView(View):
 
             # reanudación: tiempo, clima, posición
             if self._resume_mode:
-                # tiempo -> fast forward hasta elapsed guardado
                 self._fast_forward_elapsed()
 
-                # clima congelado en el estado guardado
+                # clima congelado
                 try:
                     ws = self.state.get("weather_state") if isinstance(self.state, dict) else getattr(
                         self.state, "weather_state", {}
@@ -326,20 +343,19 @@ class MapPlayerView(View):
                         job.completed = bool(raw.get("completed", False))
 
                         # si estaba recogido, añadir al inventario
-                        if job.picked_up:
-                            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
-                            if inv:
-                                try:
-                                    if hasattr(inv, "push"):
-                                        inv.push(job)
-                                    elif hasattr(inv, "add"):
-                                        inv.add(job)
-                                    elif hasattr(inv, "append"):
-                                        inv.append(job)
-                                    elif hasattr(inv, "deque"):
-                                        inv.deque.append(job)
-                                except Exception:
-                                    pass
+                        inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                        if inv and job.picked_up:
+                            try:
+                                if hasattr(inv, "push"):
+                                    inv.push(job)
+                                elif hasattr(inv, "add"):
+                                    inv.add(job)
+                                elif hasattr(inv, "append"):
+                                    inv.append(job)
+                                elif hasattr(inv, "deque"):
+                                    inv.deque.append(job)
+                            except Exception:
+                                pass
                 except Exception as e:
                     print(f"[SEED] Error sembrando job aceptado: {e}")
 
@@ -479,7 +495,7 @@ class MapPlayerView(View):
 
         self.accepted_job_ids.add(jid)
         self.job_notification_active = False
-        self.job_notification_data = None  # <-- corregida la indentación
+        self.job_notification_data = None  # ⬅️ corregida indentación
         self.next_spawn_timer = self.NEXT_SPAWN_AFTER_ACCEPT
         self.show_notification(f"✅ Pedido {jid} aceptado")
 
@@ -560,7 +576,7 @@ class MapPlayerView(View):
             pass
         self._draw_job_notification()
 
-        # Dibujar notificación activa (del segundo archivo)
+        # Notificación activa
         if self.active_notification and self.notification_timer > 0:
             self.notification_text.text = self.active_notification
             self.notification_text.draw()
@@ -581,15 +597,16 @@ class MapPlayerView(View):
         self.stats_text.text = f"Dinero: ${money:.0f}\nMeta: ${goal}\nReputación: {reputation}/100"
         self.stats_text.draw()
 
+        # ⚙️ Fallback extra: si por alguna razón el inventario desapareció, lo recreamos
         if isinstance(self.state, dict):
-            ws = self.state.get("weather_state") or self.state.get("weather_data", {})
+            if self.state.get("inventory") is None:
+                self.state["inventory"] = Inventory()
         else:
-            ws = getattr(self.state, "weather_state", None) or getattr(self.state, "weather_data", {})
-        cond = ws.get("condition", "?")
-        intensity = ws.get("intensity", "?")
-        multiplier = ws.get("multiplier", 1.0)
-        self.weather_text.text = f"Clima: {cond}\nIntensidad: {intensity}\nVelocidad: {multiplier:.0%}"
-        self.weather_text.draw()
+            if getattr(self.state, "inventory", None) is None:
+                try:
+                    setattr(self.state, "inventory", Inventory())
+                except Exception:
+                    pass
 
         self.inventory_title.draw()
         inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
@@ -605,7 +622,8 @@ class MapPlayerView(View):
                     if hasattr(inventory, 'deque'):
                         for item in inventory.deque:
                             inventory_items.append(getattr(item, "val", item))
-                # (nota: sort visual según modo; no alteramos estructura real)
+
+                # orden visual (no muta la estructura real)
                 if self.inventory_sort_mode == "priority":
                     try:
                         inventory_items = sorted(
@@ -623,7 +641,6 @@ class MapPlayerView(View):
                     except Exception:
                         pass
 
-                # ventana de 4 ítems con offset inventory_view_index
                 view = inventory_items[self.inventory_view_index:self.inventory_view_index + 4]
                 for job in view:
                     job_id = getattr(job, "id", job.get("id") if isinstance(job, dict) else str(job))
@@ -828,10 +845,9 @@ class MapPlayerView(View):
         except Exception as e:
             print(f"Error actualizando player_stats: {e}")
 
-        # -------- Clima: respeta congelado al reanudar (del primer archivo) --------
+        # -------- Clima: respeta congelado al reanudar --------
         try:
             if self._freeze_weather:
-                # usar el estado de clima del guardado sin avanzar la cadena de Markov
                 ws = self._resume_weather_state or (
                     self.state.get("weather_state") if isinstance(self.state, dict) else getattr(self.state, "weather_state", {})
                 ) or {}
@@ -870,13 +886,13 @@ class MapPlayerView(View):
                     job.dropoff_visible = True
                     picked_any = True
 
-                    inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
-                    if inventory:
+                    inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                    if inv:
                         try:
-                            if hasattr(inventory, "add"):
-                                inventory.add(job)
-                            elif hasattr(inventory, "push"):
-                                inventory.push(job)
+                            if hasattr(inv, "add"):
+                                inv.add(job)
+                            elif hasattr(inv, "push"):
+                                inv.push(job)
                         except Exception as e:
                             print(f"[PICKUP] Error añadiendo al inventario: {e}")
 
@@ -910,15 +926,15 @@ class MapPlayerView(View):
                     delivered_any = True
 
                     # Remover del inventario
-                    inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
-                    if inventory:
+                    inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                    if inv:
                         try:
-                            if hasattr(inventory, "remove"):
-                                inventory.remove(job)
-                            elif hasattr(inventory, "deque"):
-                                for item in list(inventory.deque):
+                            if hasattr(inv, "remove"):
+                                inv.remove(job)
+                            elif hasattr(inv, "deque"):
+                                for item in list(inv.deque):
                                     if getattr(item, "id", None) == getattr(job, "id", None):
-                                        inventory.deque.remove(item)
+                                        inv.deque.remove(item)
                                         break
                         except Exception as e:
                             print(f"[DELIVER] Error removiendo del inventario: {e}")
@@ -943,14 +959,12 @@ class MapPlayerView(View):
         # Registrar input
         self._last_input_time = time.time()
 
-        # Tecla P: intentar recoger paquete cercano/manual
+        # Tecla P: recoger cercano/manual
         if key == arcade.key.P:
             try:
                 picked = False
-                # Primero intentar con GameManager exacto
                 if self.game_manager and hasattr(self.game_manager, 'try_pickup_at'):
                     picked = self.game_manager.try_pickup_at(self.player.cell_x, self.player.cell_y)
-                # Si no recogió, intentar nearby
                 if not picked:
                     picked = self._pickup_nearby()
                 if picked:
@@ -983,17 +997,16 @@ class MapPlayerView(View):
         if key == arcade.key.D:
             if self.job_notification_active and self.job_notification_data:
                 return
-            inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
-            if inventory:
+            inv = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+            if inv:
                 try:
-                    if hasattr(inventory, 'get_deque_values'):
-                        inventory_items = inventory.get_deque_values()
+                    if hasattr(inv, 'get_deque_values'):
+                        inventory_items = inv.get_deque_values()
                     else:
                         inventory_items = []
-                        if hasattr(inventory, 'deque'):
-                            for item in inventory.deque:
+                        if hasattr(inv, 'deque'):
+                            for item in inv.deque:
                                 inventory_items.append(getattr(item, "val", item))
-
                     if self.inventory_view_index + 4 < len(inventory_items):
                         self.inventory_view_index += 1
                         self.show_notification("▶ Página siguiente del inventario")
@@ -1072,7 +1085,7 @@ class MapPlayerView(View):
         # Apply facing
         self._apply_facing()
 
-        # Si el GameManager intercepta movimiento, usarlo (aceptar dos variantes de nombre)
+        # Intercepción por GameManager (acepta dos variantes)
         if self.game_manager:
             try:
                 if hasattr(self.game_manager, 'handle_player_movement'):
