@@ -697,8 +697,7 @@ class MapPlayerView(View):
             except Exception:
                 pass
 
-        desc = description[:80] + "..." if len(description) > 80 else description
-        Text(f"Desc: {desc}", left + 15, time_y, arcade.color.LIGHT_GRAY, 10).draw()
+
         controls_y = bottom + 30
         Text("(A) Aceptar  (R) Rechazar", left + 15, controls_y, arcade.color.YELLOW, 12).draw()
         Text(f"Decidir en: {int(self.job_notification_timer)}s", left + 15, controls_y - 20, arcade.color.RED, 12).draw()
@@ -753,7 +752,7 @@ class MapPlayerView(View):
 
         self.panel_title.draw()
 
-        # Dinero SIEMPRE desde _get_state_money()
+        # --- Datos generales ---
         money = self._get_state_money()
         reputation = getattr(self.player_stats, "reputation", 70)
         if isinstance(self.state, dict):
@@ -764,20 +763,23 @@ class MapPlayerView(View):
         self.stats_text.text = f"Dinero: ${money:.0f}\nMeta: ${goal}\nReputación: {reputation}/100"
         self.stats_text.draw()
 
+        # --- Clima ---
         if isinstance(self.state, dict):
             ws = self.state.get("weather_state") or self.state.get("weather_data", {})
         else:
             ws = getattr(self.state, "weather_state", None) or getattr(self.state, "weather_data", {})
-        cond = ws.get("condition", "?")
-        intensity = ws.get("intensity", "?")
+        cond = ws.get("condition", "?");
+        intensity = ws.get("intensity", "?");
         multiplier = ws.get("multiplier", 1.0)
         self.weather_text.text = f"Clima: {cond}\nIntensidad: {intensity}\nVelocidad: {multiplier:.0%}"
         self.weather_text.draw()
 
+        # --- Inventario ---
         self.inventory_title.draw()
-        inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+        inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state,
+                                                                                                   "inventory", None)
         if inventory:
-            weight = getattr(inventory, "current_weight", 0)
+            weight = getattr(inventory, "current_weight", 0);
             max_weight = getattr(inventory, "max_weight", 10)
             items = []
             try:
@@ -789,20 +791,19 @@ class MapPlayerView(View):
                         for item in inventory.deque:
                             inventory_items.append(getattr(item, "val", item))
 
+                # ordenamiento opcional
                 if self.inventory_sort_mode == "priority":
                     try:
-                        inventory_items = sorted(
-                            inventory_items,
-                            key=lambda j: getattr(j, "priority", None) or (getattr(j, "raw", {}) or {}).get("priority", 999)
-                        )
+                        inventory_items = sorted(inventory_items,
+                                                 key=lambda j: getattr(j, "priority", None) or (
+                                                             getattr(j, "raw", {}) or {}).get("priority", 999))
                     except Exception:
                         pass
                 elif self.inventory_sort_mode == "deadline":
                     try:
-                        inventory_items = sorted(
-                            inventory_items,
-                            key=lambda j: getattr(j, "deadline", None) or (getattr(j, "raw", {}) or {}).get("deadline", 999999)
-                        )
+                        inventory_items = sorted(inventory_items,
+                                                 key=lambda j: getattr(j, "deadline", None) or (
+                                                             getattr(j, "raw", {}) or {}).get("deadline", 999999))
                     except Exception:
                         pass
 
@@ -818,6 +819,7 @@ class MapPlayerView(View):
         self.inventory_text.text = inventory_info
         self.inventory_text.draw()
 
+        # --- Pedidos activos ---
         self.jobs_title.draw()
         if self.job_manager and self.game_manager:
             try:
@@ -837,8 +839,7 @@ class MapPlayerView(View):
                         available = self.job_manager.get_available_jobs(self.game_manager.get_game_time())
                     except Exception:
                         available = []
-                    if available:
-                        jobs_info.append(f"- {len(available)} disponibles")
+                    if available: jobs_info.append(f"- {len(available)} disponibles")
                 self.jobs_text.text = "\n".join(jobs_info)
             except Exception as e:
                 self.jobs_text.text = f"- Error: {str(e)[:30]}..."
@@ -846,46 +847,50 @@ class MapPlayerView(View):
             self.jobs_text.text = "- Sistemas cargando..."
         self.jobs_text.draw()
 
-        stats = None
-        if self.score_system:
-            try:
-                stats = self.score_system.get_current_stats()
-            except Exception:
-                stats = None
-        if not stats:
-            stats = self._compute_fallback_stats()
-
-        try:
-            tr = stats.get('time_remaining', 0)
-            minutes = int(tr // 60)
-            seconds = int(tr % 60)
-            self.score_text.text = (f"Entregas: {stats.get('deliveries_completed', 0)}\n"
-                                    f"A tiempo: {stats.get('on_time_deliveries', 0)}\n"
-                                    f"Dinero: ${self._get_state_money():.0f}\n"
-                                    f"Tiempo: {minutes:02d}:{seconds:02d}")
-        except Exception:
-            self.score_text.text = "Cargando..."
-        self.score_text.draw()
-
+        # --- Temporizador grande ---
         if self.game_manager and hasattr(self.game_manager, 'get_time_remaining'):
             time_remaining = self.game_manager.get_time_remaining()
-            minutes = int(time_remaining // 60)
+            minutes = int(time_remaining // 60);
             seconds = int(time_remaining % 60)
             self.timer_text.text = f"⏰ {minutes:02d}:{seconds:02d}"
-            self.timer_text.color = (
-                arcade.color.GREEN if time_remaining >= 600
-                else arcade.color.ORANGE if time_remaining >= 300
-                else arcade.color.RED
-            )
+            self.timer_text.color = arcade.color.GREEN if time_remaining >= 600 else arcade.color.ORANGE if time_remaining >= 300 else arcade.color.RED
         else:
             self.timer_text.text = "⏰ 15:00"
         self.timer_text.draw()
 
+        # --- Estadísticas (Entregas / A tiempo / Dinero / Tiempo) ---
+        self.score_title.draw()
+
+        # 1) recuento real por jobs (fallback fiable)
+        fallback = self._compute_fallback_stats()
+        deliveries = fallback['deliveries_completed']
+        on_time = fallback['on_time_deliveries']
+        time_remaining = fallback['time_remaining']
+
+        # 2) combinar con score_system si existe (tomar el mayor para no volver a 0)
+        if self.score_system:
+            try:
+                s = self.score_system.get_current_stats() or {}
+                deliveries = max(int(s.get('deliveries_completed', 0) or 0), deliveries)
+                on_time = max(int(s.get('on_time_deliveries', 0) or 0), on_time)
+                time_remaining = s.get('time_remaining', time_remaining)
+            except Exception:
+                pass
+
+        minutes = int(time_remaining // 60);
+        seconds = int(time_remaining % 60)
+        self.score_text.text = (f"Entregas: {deliveries}\n"
+                                f"A tiempo: {on_time}\n"
+                                f"Dinero: ${self._get_state_money():.0f}\n"
+                                f"Tiempo: {minutes:02d}:{seconds:02d}")
+        self.score_text.draw()
+
+        # --- Barra de resistencia ---
         stamina_val = getattr(self.player_stats, "stamina", 100.0)
-        bar_w, bar_h = 200, 20
-        left = MAP_WIDTH + 50
+        bar_w, bar_h = 200, 20;
+        left = MAP_WIDTH + 50;
         bottom = 30
-        right = left + bar_w
+        right = left + bar_w;
         top = bottom + bar_h
         _draw_rect_lrbt_filled(left, right, bottom, top, arcade.color.DARK_SLATE_GRAY)
         pct = max(0.0, min(1.0, stamina_val / 100.0))
