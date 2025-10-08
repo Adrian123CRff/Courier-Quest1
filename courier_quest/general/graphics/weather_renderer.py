@@ -51,8 +51,11 @@ class WindParticle:
 class WeatherRenderer:
     def __init__(self, view, seed: int = None):
         self.view = view
-        self.width = getattr(view.window, "width", 800)
-        self.height = getattr(view.window, "height", 600)
+        # Usar dimensiones del mapa en lugar de la ventana completa
+        self.map_width = getattr(view, 'MAP_WIDTH', 730)
+        self.map_height = getattr(view, 'SCREEN_HEIGHT', 800)
+        self.width = self.map_width
+        self.height = self.map_height
         self.rng = random.Random(seed)
 
         # lluvia
@@ -76,8 +79,11 @@ class WeatherRenderer:
         self.fog_strength = 0.0
 
     def on_resize(self, width: int, height: int):
-        self.width = width
-        self.height = height
+        # Mantener las dimensiones del mapa, no de la ventana completa
+        self.map_width = getattr(self.view, 'MAP_WIDTH', 730)
+        self.map_height = getattr(self.view, 'SCREEN_HEIGHT', 800)
+        self.width = self.map_width
+        self.height = self.map_height
 
     # ---------------- update (gestión de partículas por clima) ----------------
     def update(self, dt: float, weather_state: dict):
@@ -225,10 +231,10 @@ class WeatherRenderer:
 
     # ---------------- draw (render) ----------------
     def draw(self):
-        # overlay global (cielo nublado)
+        # overlay global (cielo nublado) - solo sobre el área del mapa
         if self.cloud_opacity > 0.01:
             alpha = int(max(0, min(200, self.cloud_opacity * 255)))
-            # draw_lrbt_rectangle_filled(left, right, bottom, top, color)
+            # draw_lrbt_rectangle_filled(left, right, bottom, top, color) - solo sobre el mapa
             arcade.draw_lrbt_rectangle_filled(0, self.width, 0, self.height, (20, 24, 40, alpha))
 
         # overlay por tiles (sombra, niebla, nieve)
@@ -236,9 +242,9 @@ class WeatherRenderer:
         tile_size = getattr(self.view, "tile_size", None)
         if gm and tile_size:
             grid = getattr(gm, "grid", None)
-            if grid:
+            if grid and len(grid) > 0:
                 rows = len(grid)
-                cols = len(grid[0]) if rows > 0 else 0
+                cols = len(grid[0]) if rows > 0 and len(grid[0]) > 0 else 0
                 s = getattr(self.view, "state", None)
                 ws = getattr(s, "weather_state", {}) if s else {}
                 cond = ws.get("condition", "clear")
