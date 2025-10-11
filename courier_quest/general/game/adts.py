@@ -1,3 +1,4 @@
+
 # adts.py
 import heapq
 import itertools
@@ -8,6 +9,10 @@ T = TypeVar("T")
 
 # ---------------- Stack (LIFO) ----------------
 class Stack(Generic[T]):
+    """
+    LIFO (Last In, First Out) data structure for undo systems and history.
+    Chosen for O(1) push/pop operations, ideal for reversible actions like game state snapshots.
+    """
     def __init__(self):
         self._data: List[T] = []
 
@@ -29,6 +34,10 @@ class Stack(Generic[T]):
 
 # ---------------- Queue (FIFO) - circular buffer ----------------
 class Queue(Generic[T]):
+    """
+    FIFO (First In, First Out) data structure with circular buffer for event queues or pre-scheduled states.
+    Chosen for O(1) amortized enqueue/dequeue, efficient for bounded queues like weather prequeue.
+    """
     def __init__(self, capacity: int = 64):
         self._buf: List[Optional[T]] = [None] * capacity
         self._head = 0
@@ -81,6 +90,10 @@ class _DLLNode(Generic[T]):
 
 
 class Deque(Generic[T]):
+    """
+    Doubly-linked list deque for efficient bidirectional traversal and modifications.
+    Chosen for O(1) append/pop at both ends, suitable for inventory management allowing forward/backward navigation.
+    """
     def __init__(self):
         self.head: Optional[_DLLNode[T]] = None
         self.tail: Optional[_DLLNode[T]] = None
@@ -174,6 +187,10 @@ class Deque(Generic[T]):
 
 # ---------------- Vector (dynamic array wrapper) ----------------
 class Vector(Generic[T]):
+    """
+    Dynamic array wrapper for lists of coordinates or stats.
+    Chosen for O(1) amortized append and O(1) random access, suitable for player positions or job lists.
+    """
     def __init__(self, initial: Optional[List[T]] = None):
         self._data: List[T] = list(initial) if initial else []
 
@@ -196,6 +213,10 @@ class Vector(Generic[T]):
 
 # ---------------- Priority Queue (min-heap) con soporte update/remove --------------
 class PriorityQueue:
+    """
+    Min-heap priority queue with update/remove support for job scheduling.
+    Chosen for O(log n) push/pop and efficient priority-based selection, using lazy deletion for updates.
+    """
     def __init__(self):
         self._heap: List[Tuple[float, int, object]] = []
         self._entry_finder: Dict[object, Tuple[float, int, object]] = {}

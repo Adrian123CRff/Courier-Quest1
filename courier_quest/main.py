@@ -1,6 +1,9 @@
 # main.py
+import logging
 import arcade
 from general.graphics.ui_view_gui import MainMenuView
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 SCREEN_WIDTH = 1250
 SCREEN_HEIGHT = 800

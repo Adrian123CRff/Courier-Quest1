@@ -188,11 +188,19 @@ class Inventory:
         return self._deque_values()
 
     def sort_by_priority(self):
+        """
+        Sorts the inventory by job priority in descending order.
+        Time complexity: O(n log n) using Python's Timsort algorithm.
+        """
         items = self._deque_values()
         items.sort(key=lambda job: -getattr(job, 'priority', 0))  # Merge Sort o QuickSort
         self._rebuild_from_list(items)
 
     def sort_by_deadline(self):
+        """
+        Sorts the inventory by job deadline in ascending order.
+        Time complexity: O(n log n) using Python's Timsort algorithm.
+        """
         items = self._deque_values()
         items.sort(key=lambda job: getattr(job, 'deadline_timestamp', float('inf')))
         self._rebuild_from_list(items)

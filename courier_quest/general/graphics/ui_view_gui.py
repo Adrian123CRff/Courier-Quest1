@@ -828,6 +828,76 @@ class RecordsView(arcade.View):
 
 
 # ========================
+# Vista: Configuración
+# ========================
+class SettingsView(arcade.View):
+    def __init__(self, game_view, state, slot):
+        super().__init__()
+        self.game_view = game_view
+        self.state = state
+        self.slot = slot
+        self.manager = arcade.gui.UIManager()
+        v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=15)
+
+        # Obtener el valor actual de max_steps
+        current_max_steps = 50  # default
+        try:
+            if hasattr(self.game_view, 'game_manager') and hasattr(self.game_view.game_manager, 'undo_system'):
+                current_max_steps = self.game_view.game_manager.undo_system.max_steps
+        except Exception:
+            pass
+
+        # Etiqueta
+        label = arcade.gui.UILabel(text=f"Profundidad de deshacer (actual: {current_max_steps})", width=400)
+        v_box.add(label)
+
+        # Input para el nuevo valor
+        self.undo_input = arcade.gui.UIInputText(text=str(current_max_steps), width=200)
+        v_box.add(self.undo_input)
+
+        # Botón guardar
+        save_btn = arcade.gui.UIFlatButton(text="Guardar", width=200)
+        v_box.add(save_btn)
+        @save_btn.event("on_click")
+        def on_save(event):
+            try:
+                new_val = int(self.undo_input.text.strip())
+                if new_val < 1:
+                    new_val = 1
+                if hasattr(self.game_view, 'game_manager') and hasattr(self.game_view.game_manager, 'undo_system'):
+                    self.game_view.game_manager.undo_system.set_max_steps(new_val)
+                    print(f"[SETTINGS] Undo depth set to {new_val}")
+                slide_to(self, PauseMenuView(self.game_view, self.state, self.slot))
+            except ValueError:
+                print("[SETTINGS] Invalid number")
+            except Exception as e:
+                print(f"[SETTINGS] Error: {e}")
+
+        # Botón cancelar
+        cancel_btn = arcade.gui.UIFlatButton(text="Cancelar", width=200)
+        v_box.add(cancel_btn)
+        @cancel_btn.event("on_click")
+        def on_cancel(event): slide_to(self, PauseMenuView(self.game_view, self.state, self.slot))
+
+        anchor = arcade.gui.UIAnchorLayout()
+        anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
+        self.manager.add(anchor)
+
+    def on_show(self): arcade.set_background_color(arcade.color.DARK_BLUE_GRAY); self.manager.enable()
+    def on_hide_view(self): self.manager.disable()
+    def on_draw(self):
+        self.clear()
+        w, h = self.window.width, self.window.height
+        draw_vertical_gradient(w, h, THEME["bg_top"], THEME["bg_bottom"])
+        draw_header_and_subtitle(w, h)
+        draw_center_panel(w, h)
+        self.manager.draw()
+    def on_mouse_press(self,x,y,b,m): self.manager.on_mouse_press(x,y,b,m)
+    def on_mouse_release(self,x,y,b,m): self.manager.on_mouse_release(x,y,b,m)
+    def on_mouse_motion(self,x,y,dx,dy): self.manager.on_mouse_motion(x,y,dx,dy)
+
+
+# ========================
 # Menú de Pausa
 # ========================
 class PauseMenuView(arcade.View):
@@ -840,6 +910,10 @@ class PauseMenuView(arcade.View):
         resume_btn = arcade.gui.UIFlatButton(text="Reanudar", width=200); v_box.add(resume_btn)
         @resume_btn.event("on_click")
         def on_resume(event): self.window.show_view(self.game_view)
+
+        settings_btn = arcade.gui.UIFlatButton(text="Configuración", width=200); v_box.add(settings_btn)
+        @settings_btn.event("on_click")
+        def on_settings(event): slide_to(self, SettingsView(self.game_view, self.state, self.slot))
 
         save_btn = arcade.gui.UIFlatButton(text="Guardar", width=200); v_box.add(save_btn)
         @save_btn.event("on_click")

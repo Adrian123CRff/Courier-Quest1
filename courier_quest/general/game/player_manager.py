@@ -24,6 +24,7 @@ class Player:
         self.target_pixel_x, self.target_pixel_y = self.pixel_x, self.pixel_y
 
         self.moving: bool = False
+        self.target_surface_weight: float = 1.0
 
         # referencia a PlayerStats (si la enlazan desde MapPlayerView)
         self.bound_stats: Optional[Any] = None
@@ -60,10 +61,14 @@ class Player:
         """Enlaza objeto PlayerStats para consumo por celda y chequeos."""
         self.bound_stats = stats_obj
 
-    def request_move_to_cell(self, cx: int, cy: int) -> None:
+    def request_move_to_cell(self, cx: int, cy: int, game_map=None) -> None:
         """Inicia movimiento suave hacia el centro de la celda (no actualiza cell_x hasta llegar)."""
         self.target_pixel_x, self.target_pixel_y = self.cell_to_pixel(cx, cy)
         self.moving = True
+        if game_map and hasattr(game_map, 'get_surface_weight'):
+            self.target_surface_weight = float(game_map.get_surface_weight(cx, cy))
+        else:
+            self.target_surface_weight = 1.0
 
     def move_by(self, dx: int, dy: int, game_map) -> bool:
         """Movimiento por input: intenta moverse una celda. Retorna True si aceptado."""
@@ -88,7 +93,7 @@ class Player:
             return False
 
         # iniciar movimiento hacia la celda
-        self.request_move_to_cell(tx, ty)
+        self.request_move_to_cell(tx, ty, game_map)
         return True
 
     def _get_climate_penalty_value(self, weather_cond: str) -> float:
@@ -153,7 +158,10 @@ class Player:
         except Exception:
             weight_mul = 1.0
 
-        final_speed = pixels_per_sec * climate_mul * stamina_mul * weight_mul
+        # multiplicador por peso de la superficie
+        surface_mul = 1.0 / self.target_surface_weight
+
+        final_speed = pixels_per_sec * climate_mul * stamina_mul * weight_mul * surface_mul
 
         # desplazar hacia target
         dx = self.target_pixel_x - self.pixel_x
@@ -178,15 +186,19 @@ class Player:
                     base_cost = 0.5  # 0.5 por celda
                     weight_val = float(getattr(inventory, "current_weight", 0.0)) if inventory is not None else 0.0
                     current_weather = "clear"
+                    intensity = 1.0
                     try:
                         if weather_system is not None and hasattr(weather_system, "current_condition"):
                             current_weather = weather_system.current_condition
                         elif weather_system is not None and hasattr(weather_system, "get_state"):
-                            current_weather = weather_system.get_state().get("condition", "clear")
+                            state = weather_system.get_state()
+                            current_weather = state.get("condition", "clear")
+                            intensity = float(state.get("intensity", 1.0))
                     except Exception:
                         current_weather = "clear"
+                        intensity = 1.0
                     weather_penalty = self._get_climate_penalty_value(current_weather or "clear")
-                    stats.consume_stamina(base_cost, weight_val, weather_penalty)
+                    stats.consume_stamina(base_cost, weight_val, weather_penalty, intensity)
             except Exception:
                 pass
         else:

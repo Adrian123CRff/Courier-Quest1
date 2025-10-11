@@ -5,14 +5,18 @@ interacción con player_manager (vista/player), undo, y reglas de fin de juego.
 Diseñado para ser tolerante a distintos formatos de datos del API / state.
 """
 import time
+import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 from .score_system import ScoreSystem
+from courier_quest.general.run_api.api_client import ApiClient
 
 
 class GameManager:
     def __init__(self):
+        self.logger = logging.getLogger('GameManager')
+
         # subsistemas (se asignan en initialize_game)
         self.player_state = None
         self.job_manager = None
@@ -38,11 +42,20 @@ class GameManager:
         self.max_game_duration: Optional[float] = None  # segundos
 
     # ---------------- Inicialización ----------------
-    def initialize_game(self, map_data: Dict[str, Any], jobs_data: Optional[list], weather_data: Optional[dict]):
+    def initialize_game(self, map_data: Optional[Dict[str, Any]], jobs_data: Optional[list], weather_data: Optional[dict]):
         """
         Inicializa subsistemas y carga trabajos. map_data debe contener 'start_time' (ISO) y 'max_time' (segundos)
-        cuando sea provisto por la API.
+        cuando sea provisto por la API. Si datos faltan, se cargan desde API o /data/.
         """
+        # Offline fallback: fetch missing data using ApiClient
+        api = ApiClient()
+        if map_data is None:
+            map_data = api.get_city_map()
+        if jobs_data is None:
+            jobs_data = api.get_jobs()
+        if weather_data is None:
+            weather_data = api.get_weather()
+
         from .player_state import PlayerState
         from .jobs_manager import JobManager
         from .undo_system import UndoSystem
@@ -88,10 +101,9 @@ class GameManager:
                     print(f"[GAME_MANAGER] Error cargando job: {e}")
 
         self.is_running = True
-        print("[GAME_MANAGER] Inicializado")
-        print(f"  map_start_time: {self.map_start_time}")
-        print(f"  max_game_duration: {self.max_game_duration}")
-        print(f"  jobs cargados: {len(self.job_manager.all_jobs()) if self.job_manager else 0}")
+        self.logger.info("Game initialized")
+        self.logger.info(f"Map start time: {self.map_start_time}, max duration: {self.max_game_duration}")
+        self.logger.info(f"Jobs loaded: {len(self.job_manager.all_jobs()) if self.job_manager else 0}")
 
     # ---------------- Sistema de tiempo ----------------
     def _setup_dynamic_time_system(self, map_data: Dict[str, Any], jobs_data: Optional[list]):
@@ -297,7 +309,7 @@ class GameManager:
             print(f"[GAME_MANAGER] accept_job: no se pudo añadir {job_id}")
             return False
         job.visible_pickup, job.picked_up, job.dropoff_visible, job.completed = True, False, False, False
-        print(f"[GAME_MANAGER] Job {job_id} aceptado y añadido al inventario")
+        self.logger.info(f"Job {job_id} accepted and added to inventory")
         return True
 
     # ---------------- Entregas ----------------
@@ -372,7 +384,7 @@ class GameManager:
                                 if getattr(item, "id", None) == job.id:
                                     inv.deque.remove(item)
                                     break
-                    print(f"[GAME_MANAGER] Entregado {job.id} en {tile_x},{tile_y} (dropoff {dx},{dy}) pay={final_pay:.2f}")
+                    self.logger.info(f"Delivered job {job.id} at {tile_x},{tile_y} (dropoff {dx},{dy}) pay={final_pay:.2f}")
                     result = {
                         "job_id": getattr(job, "id", None),
                         "pay": final_pay,
@@ -399,13 +411,13 @@ class GameManager:
                     pickup_pos = tuple(job.pickup if hasattr(job, "pickup") else ())
                 if pickup_pos == (tile_x, tile_y):
                     job.picked_up, job.dropoff_visible = True, True
-                    print(f"[GAME_MANAGER] Paquete {job.id} recogido en {tile_x},{tile_y}")
+                    self.logger.info(f"Package {job.id} picked up at {tile_x},{tile_y}")
                     return True
                 try:
                     px, py = pickup_pos
                     if (tile_x, tile_y) in [(px+1,py),(px-1,py),(px,py+1),(px,py-1)]:
                         job.picked_up, job.dropoff_visible = True, True
-                        print(f"[GAME_MANAGER] Paquete {job.id} recogido adyacente a {pickup_pos}")
+                        self.logger.info(f"Package {job.id} picked up adjacent to {pickup_pos}")
                         return True
                 except Exception:
                     pass
@@ -440,7 +452,7 @@ class GameManager:
                 self.player_state.weather_system,
                 self.player_manager
             )
-            print("[GAME_MANAGER] Undo aplicado")
+            self.logger.info("Undo applied")
             return True
         except Exception as e:
             print(f"[GAME_MANAGER] Error en undo: {e}")
@@ -457,6 +469,6 @@ class GameManager:
 
     # ---------------- Game over ----------------
     def game_over(self, message: str):
-        print(f"[GAME_MANAGER] GAME OVER: {message}")
+        self.logger.info(f"Game over: {message}")
         self.is_running = False
 

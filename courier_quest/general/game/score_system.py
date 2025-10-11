@@ -2,6 +2,8 @@
 import json
 import os
 import time
+import tempfile
+import shutil
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime
@@ -72,9 +74,18 @@ class ScoreSystem:
             return []
 
     def _save_high_scores(self) -> None:
-        with open(self.scores_file, 'w') as f:
-            data = [entry.to_dict() for entry in self.high_scores]
-            json.dump(data, f, indent=2)
+        """Atomic write to prevent corruption."""
+        data = [entry.to_dict() for entry in self.high_scores]
+        tmp_name = None
+        try:
+            with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8", dir=os.path.dirname(self.scores_file)) as tmp:
+                json.dump(data, tmp, indent=2)
+                tmp_name = tmp.name
+            shutil.move(tmp_name, self.scores_file)
+        except Exception as e:
+            if tmp_name and os.path.exists(tmp_name):
+                os.remove(tmp_name)
+            raise
 
     def start_game(self):
         """Inicia el temporizador del juego"""

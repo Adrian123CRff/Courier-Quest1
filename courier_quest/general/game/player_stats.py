@@ -97,7 +97,7 @@ class PlayerStats:
             return 0.8
         return 0.0
 
-    def consume_stamina(self, base_cost: float = 0.5, weight: float = 0.0, weather_penalty: float = 0.0) -> bool:
+    def consume_stamina(self, base_cost: float = 0.5, weight: float = 0.0, weather_penalty: float = 0.0, intensity: float = 1.0) -> bool:
         """
         Consume stamina al completar una celda.
         Devuelve True si antes de consumir había > 0 stamina.
@@ -110,7 +110,7 @@ class PlayerStats:
         if weight > 3.0:
             weight_penalty = 0.2 * (weight - 3.0)
 
-        total_cost = base_cost + weight_penalty + float(weather_penalty)
+        total_cost = base_cost + weight_penalty + float(weather_penalty) * intensity
         self.stamina = max(0.0, self.stamina - total_cost)
         return True
 

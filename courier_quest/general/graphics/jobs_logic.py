@@ -81,12 +81,13 @@ class JobsLogic:
         cw_before = getattr(inv, "current_weight", None)
         removed = False
         try:
-            if hasattr(inv, "remove"):
-                inv.remove(job)
+            job_id = getattr(job, "id", None)
+            if hasattr(inv, "remove") and job_id:
+                inv.remove(job_id)
                 removed = True
             elif hasattr(inv, "deque"):
                 for item in list(inv.deque):
-                    if getattr(item, "id", None) == getattr(job, "id", None):
+                    if getattr(item, "id", None) == job_id:
                         inv.deque.remove(item)
                         removed = True
                         break
@@ -244,11 +245,14 @@ class JobsLogic:
         # ✅ CORREGIDO: Usar el sistema de reputación correcto según requerimientos
         try:
             if v.player_stats and hasattr(v.player_stats, "update_reputation"):
+                base_rep = v.player_stats.reputation
+                print(f"[REPUTATION] Base reputation: {base_rep}")
+
                 # Calcular tiempo restante para determinar tipo de entrega
                 seconds_late = 0
                 early_percent = 0
                 event_type = "delivery_on_time"
-                
+
                 if v.game_manager and job:
                     try:
                         remaining = v.game_manager.get_job_time_remaining(getattr(job, "raw", {}))
@@ -268,21 +272,24 @@ class JobsLogic:
                                             event_type = "delivery_early"
                     except Exception:
                         pass
-                
+
                 # Actualizar reputación con el sistema correcto
                 rep_delta = v.player_stats.update_reputation(event_type, {
                     "seconds_late": seconds_late,
                     "early_percent": early_percent
                 })
-                
+
+                print(f"[REPUTATION] Modifications: {event_type} -> {rep_delta:+d} points")
+                print(f"[REPUTATION] New reputation: {v.player_stats.reputation}")
+
                 # Aplicar multiplicador de pago por reputación alta
                 if v.player_stats.get_payment_multiplier() > 1.0:
                     bonus_payout = payout * 0.05  # 5% extra
                     v._add_money(bonus_payout)
-                    print(f"[REPUTATION] Bonus por reputación alta: +${bonus_payout:.2f}")
-                
-                print(f"[REPUTATION] {event_type}: {rep_delta:+d} puntos (reputación: {v.player_stats.reputation})")
-                
+                    print(f"[MONEY] Reputation bonus adjustment: +${bonus_payout:.2f} (high reputation multiplier)")
+
+                print(f"[MONEY] Total payout: ${payout:.2f} (base) + bonuses")
+
         except Exception as e:
             print(f"[REPUTATION] Error actualizando reputación: {e}")
             # Fallback al sistema simple si hay error

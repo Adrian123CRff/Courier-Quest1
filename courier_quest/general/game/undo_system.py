@@ -15,6 +15,15 @@ class UndoSystem:
         self.max_steps = max_steps
         self.current_step = 0
 
+    def set_max_steps(self, new_max: int):
+        """Cambia el número máximo de pasos de deshacer."""
+        if new_max < 1:
+            new_max = 1
+        self.max_steps = new_max
+        # Si hay más estados que el nuevo límite, eliminar los antiguos
+        while self.undo_stack.__len__() > self.max_steps:
+            self._remove_oldest()
+
     def save_state(self, game_state: Dict[str, Any]):
         """Guarda el estado actual del juego en la pila de deshacer."""
         if self.undo_stack.__len__() >= self.max_steps:
