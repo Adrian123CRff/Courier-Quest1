@@ -196,6 +196,16 @@ class Inventory:
         items.sort(key=lambda job: -getattr(job, 'priority', 0))  # Merge Sort o QuickSort
         self._rebuild_from_list(items)
 
+    def to_dict(self):
+        """
+        Serializes the inventory to a dictionary for saving.
+        """
+        return {
+            'deque': self.get_deque_values(),
+            'max_weight': self.max_weight,
+            'current_weight': self.current_weight
+        }
+
     def sort_by_deadline(self):
         """
         Sorts the inventory by job deadline in ascending order.

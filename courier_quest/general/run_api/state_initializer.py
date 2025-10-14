@@ -63,6 +63,10 @@ def init_game_state(api: Optional[ApiClient] = None, force_update: bool = False)
         jobs = api.get_jobs()
         weather = api.get_weather()
 
+        # Si el mapa no tiene tiles, intentar fallback con cache
+        if not city_map.get("tiles"):
+            city_map = _fallback_tiles_from_cache(city_map)
+
         # Validar datos críticos
         if not city_map.get("start_time"):
             print("❌ ERROR: El mapa no tiene start_time")

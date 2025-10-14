@@ -263,16 +263,20 @@ class ApiClient:
         try:
             data = self.fetch_data("city/map")
             if not data or not isinstance(data, dict):
-                return self._get_fallback_map()
+                data = self._get_fallback_map()
 
-            # ✅ Validar campos REQUERIDOS dinámicamente
+            # Validar campos REQUERIDOS dinámicamente
             required_fields = ["start_time", "max_time", "goal"]
             missing_fields = [field for field in required_fields if field not in data]
 
             if missing_fields:
                 print(f"⚠️  ADVERTENCIA: Mapa falta campos: {missing_fields}")
-                # Intentar completar con valores por defecto GENÉRICOS
                 data = self._complete_missing_fields(data)
+
+            # Asegurar que tenemos tiles y legend
+            if not data.get("tiles") or not data.get("legend"):
+                # Intentar fallback con cache
+                data = _fallback_tiles_from_cache(data)  # Nota: Esta función está en state_initializer, podríamos moverla a api_client o viceversa
 
             return {
                 "name": data.get("name", data.get("city_name", "UnknownCity")),
@@ -305,6 +309,46 @@ class ApiClient:
                 print(f"⚠️  Campo {field} completado con valor por defecto: {default}")
 
         return data
+
+    @staticmethod
+    def _fallback_tiles_from_cache(city_map: dict) -> dict:
+        """
+        Si city_map no contiene 'tiles', intenta leer api_cache/city_map.json
+        y devolver una versión con 'tiles' si existe.
+        """
+        # Si ya trae tiles, devolver tal cual
+        if city_map and isinstance(city_map, dict) and city_map.get("tiles"):
+            return city_map
+
+        # Intentar leer cache
+        cache_path = Path("api_cache") / "city_map.json"
+        try:
+            if cache_path.exists():
+                with cache_path.open(encoding="utf-8") as f:
+                    cached = json.load(f)
+                if isinstance(cached, dict) and cached.get("tiles"):
+                    print(f"[FALLBACK] API no trae 'tiles' -> usando 'tiles' desde cache: {cache_path}")
+                    # Merge sensible: preferir keys del cached, pero mantener campos principales de city_map si vienen
+                    merged = dict(cached)
+                    if isinstance(city_map, dict):
+                        # Sobre-escribir con city_map valores 'name','width','height' si el API los prové
+                        if city_map.get("name"):
+                            merged["name"] = city_map.get("name")
+                        if city_map.get("city_name"):
+                            merged["city_name"] = city_map.get("city_name")
+                        if city_map.get("width"):
+                            merged["width"] = city_map.get("width")
+                        if city_map.get("height"):
+                            merged["height"] = city_map.get("height")
+                        # conservar otras keys existentes en city_map (no borrar cached)
+                        for k, v in city_map.items():
+                            if k not in merged:
+                                merged[k] = v
+                    return merged
+        except Exception as e:
+            print("[FALLBACK] Error leyendo cache:", e)
+
+        return city_map or {}
 
     @staticmethod
     def _get_fallback_map() -> Dict[str, Any]:

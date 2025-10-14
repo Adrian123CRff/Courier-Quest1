@@ -345,14 +345,28 @@ class MapPlayerView(View):
                     print(f"[RESUME] No se pudo fijar clima: {e}")
 
                 try:
-                    px = self.state.get("player_x") if isinstance(self.state, dict) else getattr(self.state, "player_x", None)
-                    py = self.state.get("player_y") if isinstance(self.state, dict) else getattr(self.state, "player_y", None)
-                    if px is not None and py is not None:
-                        if hasattr(self.player, "set_cell"):
-                            self.player.set_cell(int(px), int(py))
-                        else:
+                    # First try to load from 'player' dict (new format)
+                    player_data = self.state.get("player") if isinstance(self.state, dict) else getattr(self.state, "player", None)
+                    if player_data and isinstance(player_data, dict):
+                        px = player_data.get("cell_x")
+                        py = player_data.get("cell_y")
+                        if px is not None and py is not None:
                             self.player.cell_x = int(px)
                             self.player.cell_y = int(py)
+                            self.player.pixel_x, self.player.pixel_y = self.player.cell_to_pixel(self.player.cell_x, self.player.cell_y)
+                            self.player.target_pixel_x, self.player.target_pixel_y = self.player.pixel_x, self.player.pixel_y
+                            self.player.moving = player_data.get("moving", False)
+                            self.player.target_surface_weight = player_data.get("target_surface_weight", 1.0)
+                            self.player.base_cells_per_sec = player_data.get("base_cells_per_sec", self.player.base_cells_per_sec)
+                    else:
+                        # Fallback to old format
+                        px = self.state.get("player_x") if isinstance(self.state, dict) else getattr(self.state, "player_x", None)
+                        py = self.state.get("player_y") if isinstance(self.state, dict) else getattr(self.state, "player_y", None)
+                        if px is not None and py is not None:
+                            self.player.cell_x = int(px)
+                            self.player.cell_y = int(py)
+                            self.player.pixel_x, self.player.pixel_y = self.player.cell_to_pixel(self.player.cell_x, self.player.cell_y)
+                            self.player.target_pixel_x, self.player.target_pixel_y = self.player.pixel_x, self.player.pixel_y
                 except Exception as e:
                     print(f"[RESUME] No se pudo fijar posición: {e}")
 
@@ -521,6 +535,18 @@ class MapPlayerView(View):
         accepted_ids = {(r.get("id") or r.get("job_id")) for r in self.accepted_raw_jobs}
         self.incoming_raw_jobs = [r for r in self.incoming_raw_jobs if (r.get("id") or r.get("job_id")) not in accepted_ids]
         print(f"[JOBS] Cargados {len(self.incoming_raw_jobs)} pendientes, {len(self.accepted_raw_jobs)} aceptados")
+
+        # 5) Limpiar inventario: remover trabajos completados y recalcular peso
+        try:
+            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+            if inv and hasattr(inv, 'deque') and inv.deque:
+                # Remover trabajos completados
+                inv.deque = [job for job in inv.deque if not getattr(job, 'completed', False)]
+                # Recalcular peso actual
+                inv.current_weight = sum(float(getattr(job, 'weight', 0.0)) for job in inv.deque)
+                print(f"[INVENTORY] Limpiado: {len(inv.deque)} items restantes, peso total {inv.current_weight:.1f}")
+        except Exception as e:
+            print(f"[LOAD] Error limpiando inventario: {e}")
 
     def _raw_job_id(self, raw: dict) -> str:
         return raw.get("id") or raw.get("job_id") or raw.get("req") or str(raw)
@@ -1362,6 +1388,14 @@ class MapPlayerView(View):
 
         # Ctrl+Shift+S: Guardar
         if key == arcade.key.S and (modifiers & arcade.key.MOD_CTRL) and (modifiers & arcade.key.MOD_SHIFT):
+            # Add player position and elapsed time to state before saving
+            try:
+                self.state["player_x"] = self.player.cell_x
+                self.state["player_y"] = self.player.cell_y
+                if self.game_manager and hasattr(self.game_manager, "get_game_time"):
+                    self.state["elapsed_seconds"] = self.game_manager.get_game_time()
+            except Exception as e:
+                print(f"[SAVE] Error adding player position: {e}")
             if self.save_manager.save():
                 self.show_notification("💾 Partida guardada")
             else:

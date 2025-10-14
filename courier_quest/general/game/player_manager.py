@@ -52,6 +52,22 @@ class Player:
         self.sprite_list = arcade.SpriteList()
         self.sprite_list.append(self.sprite)
 
+    def to_dict(self):
+        """
+        Serializes the player to a dictionary for saving.
+        """
+        return {
+            'cell_x': self.cell_x,
+            'cell_y': self.cell_y,
+            'pixel_x': self.pixel_x,
+            'pixel_y': self.pixel_y,
+            'target_pixel_x': self.target_pixel_x,
+            'target_pixel_y': self.target_pixel_y,
+            'moving': self.moving,
+            'target_surface_weight': self.target_surface_weight,
+            'base_cells_per_sec': self.base_cells_per_sec
+        }
+
     def cell_to_pixel(self, cx: int, cy: int) -> Tuple[float, float]:
         px = (cx + 0.5) * self.tile_size
         py = (self.map_rows - cy - 0.5) * self.tile_size if self.flip_y else (cy + 0.5) * self.tile_size
