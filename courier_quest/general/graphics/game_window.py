@@ -28,6 +28,13 @@ from .undo_manager import UndoManager
 from game.game_manager import GameManager
 from game.jobs_manager import JobManager
 
+        # New component managers for refactored MapPlayerView
+        self.game_state_manager = GameStateManager(self)
+        self.input_handler = InputHandler(self)
+        self.ui_manager = UIManager(self)
+        self.update_manager = UpdateManager(self)
+        self.game_logic_handler = GameLogicHandler(self)
+
 # Intento de import (para partidas nuevas) — no falla si no existe
 try:
     from game.inventory import Inventory
@@ -735,29 +742,7 @@ class MapPlayerView(View):
         }
 
     def on_draw(self) -> None:
-        self.clear()
-        self.game_map.draw_debug(tile_size=TILE_SIZE, draw_grid_lines=True)
-        self.jobs_logic.draw_job_markers()
-        self.player.draw()
-        self._draw_panel()
-        # HUD tipo tarjeta arriba-izquierda
-        try:
-            self._draw_hud_card()
-        except Exception:
-            pass
-        # self.time_panel.draw()  # Removed: now in HUD card
-        try:
-            self.weather_renderer.draw()
-        except Exception:
-            pass
-        self.notifications.draw()
-
-        if self.active_notification and self.notification_timer > 0:
-            self.notification_text.text = self.active_notification
-            self.notification_text.draw()
-
-        if self._show_lose_overlay:
-            self._draw_lose_overlay()
+        self.ui_manager.draw()
 
     def _draw_panel(self):
         # self.right_panel.draw_frame()  # Removed: replaced by HUD card
@@ -1066,141 +1051,7 @@ class MapPlayerView(View):
 
     # ------------------ Update ------------------
     def on_update(self, dt: float) -> None:
-        if self.game_manager:
-            try:
-                self.game_manager.update(dt)
-            except Exception as e:
-                print(f"Error en game_manager.update: {e}")
-
-        # notifications timers and spawning
-        self.notifications.update_timers(dt)
-
-        if self.active_notification and self.notification_timer > 0:
-            self.notification_timer -= dt
-            if self.notification_timer <= 0:
-                self.active_notification = None
-
-        input_active = (time.time() - self._last_input_time) < self.INPUT_ACTIVE_WINDOW
-        self._ensure_inventory()
-        inventory = self.state.get("inventory", None) if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
-        was_moving = bool(self.player.moving)
-
-        try:
-            self.player.update(dt, player_stats=self.player_stats, weather_system=self.weather_markov, inventory=inventory)
-        except Exception:
-            try:
-                self.player.update(dt)
-            except Exception:
-                pass
-
-        if was_moving and not self.player.moving:
-            px = int(self.player.cell_x)
-            py = int(self.player.cell_y)
-
-            picked_up = False
-            if self.game_manager and hasattr(self.game_manager, 'try_pickup_at'):
-                try:
-                    picked_up = self.game_manager.try_pickup_at(px, py)
-                except Exception as e:
-                    print(f"Error en try_pickup_at: {e}")
-
-            if not picked_up:
-                picked_up = self.jobs_logic.pickup_nearby()
-
-            if picked_up:
-                self.show_notification("¡Paquete recogido! Ve al punto de entrega.")
-
-            delivered = False
-            if self.game_manager and hasattr(self.game_manager, 'try_deliver_at'):
-                try:
-                    result = self.game_manager.try_deliver_at(px, py)
-                    if result:
-                        delivered = True
-                        try:
-                            jid = result.get('job_id') if isinstance(result, dict) else None
-                            job = self.job_manager.get_job(jid) if (jid and self.job_manager) else None
-                        except Exception:
-                            job = None
-
-                        # **Remover del inventario también en el flujo de GameManager**
-                        self.jobs_logic.remove_job_from_inventory(job)
-
-                        # asegurar estado del job
-                        try:
-                            if job and not getattr(job, "completed", False):
-                                job.completed = True
-                        except Exception:
-                            pass
-
-                        pay_hint = 0.0
-                        try:
-                            if isinstance(result, dict):
-                                pay_hint = result.get("pay", 0)
-                        except Exception:
-                            pass
-                        pay = self._get_job_payout(job) if job is not None else self._parse_money(pay_hint)
-
-                        on_time = True
-                        try:
-                            if hasattr(self.game_manager, "get_job_time_remaining"):
-                                rem = self.game_manager.get_job_time_remaining(
-                                    getattr(job, "raw", {}) if job is not None else {}
-                                )
-                                # on_time = True si no hay deadline o si aún hay tiempo restante
-                                on_time = (rem == float("inf")) or (rem >= 0)
-                        except Exception:
-                            pass
-
-                        self.jobs_logic.notify_delivery(job, pay, on_time)
-
-                        if isinstance(result, dict):
-                            jid = result.get('job_id', '¿?')
-                            self.show_notification(f"¡Pedido {jid} entregado!\n+${pay:.0f}")
-                        else:
-                            self.show_notification(f"¡Pedido entregado! +${pay:.0f}")
-                except Exception as e:
-                    print(f"Error deliver (GameManager): {e}")
-
-            if not delivered:
-                delivered = self.jobs_logic.try_deliver_at_position(px, py)
-                if delivered:
-                    self.show_notification("¡Pedido entregado! +$")
-
-        # 1) pagar entregas no contabilizadas
-        self.jobs_logic.synchronize_money_with_completed_jobs()
-        # 2) y forzar consistencia si algo lo desfasó
-        self.jobs_logic.recompute_money_from_jobs()
-
-        # 3) verificar condiciones de fin de partida y registrar puntaje
-        try:
-            prev_game_over = getattr(self, "_game_over", False)
-            self.endgame.check_and_maybe_end()
-            if getattr(self, "_game_over", False) and not prev_game_over:
-                # activar overlay de derrota si aplica
-                money = self._get_state_money()
-                goal = self.endgame._compute_goal()
-                rep = getattr(self.player_stats, "reputation", 70)
-                if rep < 20 or money < goal:
-                    self._show_lose_overlay = True
-                    self._lose_reason = "Reputación baja" if rep < 20 else "Meta no alcanzada"
-        except Exception as e:
-            print(f"[ENDGAME] Error: {e}")
-
-        try:
-            current_weather = self.weather.get_current_condition_name()
-            self.player_stats.update(
-                dt,
-                bool(self.player.moving),
-                getattr(self, "at_rest_point", False),
-                float(getattr(inventory, "current_weight", 0.0)) if inventory is not None else 0.0,
-                current_weather,
-                input_active=input_active
-            )
-        except Exception as e:
-            print(f"Error actualizando player_stats: {e}")
-
-        # unified weather update/render state propagation
-        self.weather.update_and_render(dt)
+        self.update_manager.update(dt)
 
     # Delivery notification now handled by JobsLogic
 
