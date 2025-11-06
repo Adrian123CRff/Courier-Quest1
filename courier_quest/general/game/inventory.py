@@ -1,6 +1,6 @@
 # inventory.py
 from typing import Optional, List, Any
-from game.adts import Deque
+from .adts import Deque
 
 class Inventory:
     """

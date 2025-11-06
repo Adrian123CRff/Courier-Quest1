@@ -5,9 +5,9 @@ Game State Manager - Handles game state initialization and management
 import time
 from typing import Any, List, Dict
 
-from run_api.api_client import ApiClient
-from game.game_manager import GameManager
-from game.jobs_manager import JobManager
+from ..run_api.api_client import ApiClient
+from ..game.game_manager import GameManager
+from ..game.jobs_manager import JobManager
 
 
 class GameStateManager:

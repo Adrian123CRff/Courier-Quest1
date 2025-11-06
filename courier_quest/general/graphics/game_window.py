@@ -4,12 +4,12 @@ import arcade
 from arcade import View, Text
 from typing import List, Any
 
-from run_api.api_client import ApiClient
+from ..run_api.api_client import ApiClient
 from .map_manager import GameMap, FLIP_Y
-from game.player_manager import Player
-from game.player_stats import PlayerStats
-from game.weather_markov import WeatherMarkov
-from graphics.weather_renderer import WeatherRenderer
+from ..game.player_manager import Player
+from ..game.player_stats import PlayerStats
+from ..game.weather_markov import WeatherMarkov
+from .weather_renderer import WeatherRenderer
 from .inventory_ui import InventoryUI
 from .notification_manager import NotificationManager
 from .jobs_logic import JobsLogic
@@ -24,16 +24,15 @@ from .active_jobs_ui import ActiveJobsUI
 from .endgame_manager import EndgameManager
 from .save_manager import SaveManager
 from .undo_manager import UndoManager
+from .game_state_manager import GameStateManager
+from .input_handler import InputHandler
+from .ui_manager import UIManager
+from .update_manager import UpdateManager
+from .game_logic_handler import GameLogicHandler
+from .drawing_utils import _draw_rect_lrbt_filled, _draw_rect_lrbt_outline
 
-from game.game_manager import GameManager
-from game.jobs_manager import JobManager
-
-        # New component managers for refactored MapPlayerView
-        self.game_state_manager = GameStateManager(self)
-        self.input_handler = InputHandler(self)
-        self.ui_manager = UIManager(self)
-        self.update_manager = UpdateManager(self)
-        self.game_logic_handler = GameLogicHandler(self)
+from ..game.game_manager import GameManager
+from ..game.jobs_manager import JobManager
 
 # Intento de import (para partidas nuevas) — no falla si no existe
 try:
@@ -47,14 +46,7 @@ MAP_WIDTH = 730
 TILE_SIZE = 24
 
 
-def _draw_rect_lrbt_filled(left: float, right: float, bottom: float, top: float, color):
-    pts = [(left, bottom), (right, bottom), (right, top), (left, top)]
-    arcade.draw_polygon_filled(pts, color)
 
-
-def _draw_rect_lrbt_outline(left: float, right: float, bottom: float, top: float, color, border_width=2):
-    pts = [(left, bottom), (right, bottom), (right, top), (left, top)]
-    arcade.draw_polygon_outline(pts, color, border_width)
 
 
 class MapPlayerView(View):
@@ -185,6 +177,14 @@ class MapPlayerView(View):
         # self.right_panel = RightPanelUI(self)  # Removed: replaced by HUD card
         self.active_jobs_ui = ActiveJobsUI(self)
         self.endgame = EndgameManager(self)
+        
+        # New component managers for refactored MapPlayerView
+        self.game_state_manager = GameStateManager(self)
+        self.input_handler = InputHandler(self)
+        self.ui_manager = UIManager(self)
+        self.update_manager = UpdateManager(self)
+        self.game_logic_handler = GameLogicHandler(self)
+        
         self.save_manager = SaveManager(self)
         self.undo = UndoManager(self)
         
@@ -742,7 +742,7 @@ class MapPlayerView(View):
         }
 
     def on_draw(self) -> None:
-        self.ui_manager.draw()
+        self.ui_manager.on_draw()
 
     def _draw_panel(self):
         # self.right_panel.draw_frame()  # Removed: replaced by HUD card
@@ -1051,7 +1051,7 @@ class MapPlayerView(View):
 
     # ------------------ Update ------------------
     def on_update(self, dt: float) -> None:
-        self.update_manager.update(dt)
+        self.update_manager.on_update(dt)
 
     # Delivery notification now handled by JobsLogic
 

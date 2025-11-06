@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
 from .score_system import ScoreSystem
-from courier_quest.general.run_api.api_client import ApiClient
+from ..run_api.api_client import ApiClient
 
 
 class GameManager:

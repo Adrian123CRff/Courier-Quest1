@@ -4,6 +4,7 @@ UI Manager - Handles all UI drawing operations
 
 import arcade
 from arcade import Text
+from .drawing_utils import _draw_rect_lrbt_filled, _draw_rect_lrbt_outline
 
 
 class UIManager:
@@ -63,16 +64,16 @@ class UIManager:
         top = h - 10
         bottom = top - card_h
         right = left + card_w
-        self.parent._draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
-        self.parent._draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
+        _draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
+        _draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
 
         # Función para dibujar barras de progreso más pequeñas
         def draw_progress_bar(x, y, width, height, value01, fill_color, bg_color=(40, 45, 60)):
-            self.parent._draw_rect_lrbt_filled(x, x + width, y - height, y, bg_color)
-            self.parent._draw_rect_lrbt_outline(x, x + width, y - height, y, (60, 70, 90), 1)
+            _draw_rect_lrbt_filled(x, x + width, y - height, y, bg_color)
+            _draw_rect_lrbt_outline(x, x + width, y - height, y, (60, 70, 90), 1)
             fill_width = int(max(0, min(1, value01)) * width)
             if fill_width > 0:
-                self.parent._draw_rect_lrbt_filled(x, x + fill_width, y - height, y, fill_color)
+                _draw_rect_lrbt_filled(x, x + fill_width, y - height, y, fill_color)
 
         # Tiempo - más compacto
         try:
@@ -169,8 +170,8 @@ class UIManager:
         right = left + panel_w
 
         # Fondo del panel
-        self.parent._draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
-        self.parent._draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
+        _draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
+        _draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
 
         # Título más pequeño
         Text("📦 INVENTARIO", left + 12, top - 20, (255, 220, 120), 12, bold=True).draw()
@@ -230,8 +231,8 @@ class UIManager:
                     # Guardar coordenadas para detección de clics
                     self.parent.inventory_left_button_rect = (btn_left, btn_bottom, btn_right, btn_top)
 
-                    self.parent._draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (60, 70, 90))
-                    self.parent._draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (100, 120, 140), 1)
+                    _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (60, 70, 90))
+                    _draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (100, 120, 140), 1)
                     Text("◀", btn_left + btn_w//2, btn_bottom + btn_h//2, (240, 246, 255), 12,
                          anchor_x="center", anchor_y="center").draw()
 
@@ -242,8 +243,8 @@ class UIManager:
                     # Guardar coordenadas para detección de clics
                     self.parent.inventory_right_button_rect = (btn_left, btn_bottom, btn_right, btn_top)
 
-                    self.parent._draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (60, 70, 90))
-                    self.parent._draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (100, 120, 140), 1)
+                    _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (60, 70, 90))
+                    _draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (100, 120, 140), 1)
                     Text("▶", btn_left + btn_w//2, btn_bottom + btn_h//2, (240, 246, 255), 12,
                          anchor_x="center", anchor_y="center").draw()
 
@@ -273,11 +274,11 @@ class UIManager:
         self.parent.undo_button_rect = (btn_left, btn_bottom, btn_right, btn_top)
 
         # Fondo del botón (blanco con bordes redondeados simulados)
-        self.parent._draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (255, 255, 255))
-        self.parent._draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (200, 200, 200), 1)
+        _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (255, 255, 255))
+        _draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (200, 200, 200), 1)
 
         # Sombra sutil en la parte inferior
-        self.parent._draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom - 2, btn_bottom, (180, 180, 180))
+        _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom - 2, btn_bottom, (180, 180, 180))
 
         # Icono de deshacer (flecha circular)
         icon_x = btn_left + 12
@@ -301,15 +302,15 @@ class UIManager:
         try:
             arcade.draw_lrbt_rectangle_filled(0, w, 0, h, (0, 0, 0, 180))
         except Exception:
-            self.parent._draw_rect_lrbt_filled(0, w, 0, h, (10, 10, 14))
+            _draw_rect_lrbt_filled(0, w, 0, h, (10, 10, 14))
         # tarjeta central
         card_w = int(min(520, w * 0.7))
         card_h = 240
         cx = w // 2; cy = h // 2
         left = cx - card_w//2; right = cx + card_w//2
         bottom = cy - card_h//2; top = cy + card_h//2
-        self.parent._draw_rect_lrbt_filled(left, right, bottom, top, (25, 28, 45))
-        self.parent._draw_rect_lrbt_outline(left, right, bottom, top, (120, 100, 220), 3)
+        _draw_rect_lrbt_filled(left, right, bottom, top, (25, 28, 45))
+        _draw_rect_lrbt_outline(left, right, bottom, top, (120, 100, 220), 3)
         Text("❌ Derrota", left + 24, top - 40, (255, 120, 120), 24, bold=True).draw()
         Text(self.parent._lose_reason or "", left + 24, top - 70, (230, 236, 245), 14).draw()
         Text("Presiona cualquier tecla para volver al menú", left + 24, bottom + 28, (200, 210, 220), 12).draw()

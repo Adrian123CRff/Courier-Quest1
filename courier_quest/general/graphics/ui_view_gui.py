@@ -5,15 +5,15 @@ import os
 import time
 
 # --- módulos del juego ---
-from run_api.api_client import ApiClient
-from run_api.state_initializer import init_game_state
-from run_api.save_manager import save_game, load_game, list_saves
-from graphics.game_window import MapPlayerView
-from game.player_state import PlayerState
+from ..run_api.api_client import ApiClient
+from ..run_api.state_initializer import init_game_state
+from ..run_api.save_manager import save_game, load_game, list_saves
+from .game_window import MapPlayerView
+from ..game.player_state import PlayerState
 
 # --- score system (tabla de records) ---
 # --- para la tabla de récords ---
-from game.score_system import ScoreSystem, ScoreEntry
+from ..game.score_system import ScoreSystem, ScoreEntry
 
 
 SCREEN_WIDTH = 800
