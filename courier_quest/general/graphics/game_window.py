@@ -19,7 +19,7 @@ from .weather_coordinator import WeatherCoordinator
 # from .stats_panel_ui import StatsPanelUI  # Removed: functionality moved to HUD card
 from .coords_utils import CoordsUtils
 from .payout_utils import PayoutUtils
-from .right_panel_ui import RightPanelUI
+
 from .active_jobs_ui import ActiveJobsUI
 from .endgame_manager import EndgameManager
 from .save_manager import SaveManager
@@ -28,7 +28,6 @@ from .game_state_manager import GameStateManager
 from .input_handler import InputHandler
 from .ui_manager import UIManager
 from .update_manager import UpdateManager
-from .game_logic_handler import GameLogicHandler
 from .drawing_utils import _draw_rect_lrbt_filled, _draw_rect_lrbt_outline
 
 from ..game.game_manager import GameManager
@@ -159,7 +158,7 @@ class MapPlayerView(View):
         self._counted_deliveries = set()
 
         self._initialize_game_systems()
-
+        self.apply_emergency_fixes()
         # expose some constants for helper modules
         self.TILE_SIZE = TILE_SIZE
         self.SCREEN_WIDTH = SCREEN_WIDTH
@@ -183,7 +182,7 @@ class MapPlayerView(View):
         self.input_handler = InputHandler(self)
         self.ui_manager = UIManager(self)
         self.update_manager = UpdateManager(self)
-        self.game_logic_handler = GameLogicHandler(self)
+
         
         self.save_manager = SaveManager(self)
         self.undo = UndoManager(self)
@@ -1424,3 +1423,99 @@ class MapPlayerView(View):
         except Exception as e:
             print(f"Error mostrando oferta: {e}")
             self._pending_offer = None
+
+    # En MapPlayerView - AGREGAR estos métodos
+    def _initialize_game_time_systems(self):
+        """✅ NUEVO: Integración correcta de sistemas de tiempo"""
+        try:
+            # Obtener start_time del mapa
+            map_data = self.state.get("map_data", {}) if isinstance(self.state, dict) else getattr(self.state,
+                                                                                                   "map_data", {})
+            start_time_str = map_data.get("start_time", "2025-09-01T12:00:00Z")
+
+            # Configurar GameManager
+            if self.game_manager:
+                # Si GameManager tiene método para configurar tiempo, usarlo
+                if hasattr(self.game_manager, 'set_game_start_time'):
+                    self.game_manager.set_game_start_time(start_time_str)
+                elif hasattr(self.game_manager, '_game_start_epoch'):
+                    from datetime import datetime
+                    start_dt = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                    self.game_manager._game_start_epoch = start_dt.timestamp()
+
+            # Configurar JobManager
+            if self.job_manager and hasattr(self.job_manager, '_game_start_epoch'):
+                from datetime import datetime
+                start_dt = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+                self.job_manager._game_start_epoch = start_dt.timestamp()
+                print(f"✅ Tiempo configurado: {start_time_str}")
+
+        except Exception as e:
+            print(f"❌ Error configurando tiempo: {e}")
+
+    def apply_emergency_fixes(self):
+        """✅ NUEVO: Parches de emergencia para problemas críticos"""
+        print("🔧 APLICANDO PARCHES DE EMERGENCIA")
+
+        # 1. Configurar tiempo real
+        self._initialize_game_time_systems()
+
+        # 2. Verificar integración
+        self._verify_systems_integration()
+
+        # 3. Diagnosticar problemas
+        self._diagnose_issues()
+
+    def _verify_systems_integration(self):
+        """Verifica que todos los sistemas estén conectados"""
+        issues = []
+
+        # Verificar GameManager
+        if not self.game_manager:
+            issues.append("❌ GameManager no inicializado")
+        else:
+            try:
+                current_time = self.game_manager.get_game_time()
+                print(f"✅ GameManager tiempo: {current_time:.1f}s")
+            except Exception as e:
+                issues.append(f"❌ GameManager error: {e}")
+
+        # Verificar JobManager
+        if not self.job_manager:
+            issues.append("❌ JobManager no inicializado")
+        elif not hasattr(self.job_manager, '_game_start_epoch'):
+            issues.append("❌ JobManager sin _game_start_epoch")
+        else:
+            print(f"✅ JobManager configurado")
+
+        # Verificar reputación
+        if not hasattr(self, 'player_stats') or not self.player_stats:
+            issues.append("❌ PlayerStats no inicializado")
+        else:
+            print(f"✅ PlayerStats: reputación={self.player_stats.reputation}")
+
+        if issues:
+            print("🔍 PROBLEMAS ENCONTRADOS:")
+            for issue in issues:
+                print(f"   {issue}")
+        else:
+            print("✅ Todos los sistemas integrados correctamente")
+
+    def _diagnose_issues(self):
+        """Diagnóstico detallado de problemas"""
+        print("\n🔍 DIAGNÓSTICO DETALLADO:")
+
+        # Verificar trabajos disponibles
+        if self.game_manager and self.job_manager:
+            try:
+                current_time = self.game_manager.get_game_time()
+                available_jobs = self.job_manager.get_available_jobs(current_time)
+                print(f"📦 Trabajos disponibles: {len(available_jobs)}")
+
+                for job in available_jobs:
+                    release_time = getattr(job, 'release_time', 0)
+                    status = "✅ DISPONIBLE" if release_time <= current_time else f"⏰ En {release_time - current_time:.0f}s"
+                    print(f"   - {job.id}: {status}")
+
+            except Exception as e:
+                print(f"❌ Error diagnosticando trabajos: {e}")

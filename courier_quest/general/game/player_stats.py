@@ -142,7 +142,7 @@ class PlayerStats:
             else:
                 reputation_change = -10
             if self.first_late_delivery_of_day and self.reputation >= 85:
-                reputation_change = reputation_change // 2
+                reputation_change = int(reputation_change / 2)
                 self.first_late_delivery_of_day = False
             self.consecutive_on_time_deliveries = 0
         elif event_type == "cancel_order":

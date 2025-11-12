@@ -191,15 +191,46 @@ class GameManager:
         except Exception:
             return False
 
-    def get_job_time_remaining(self, job_data: Dict[str, Any]) -> float:
-        if not job_data:
-            return float("inf")
-        deadline_ts = job_data.get("deadline_timestamp")
-        if deadline_ts is None:
-            return float("inf")
+    def get_job_time_remaining(self, job_data: dict) -> float:
+        """Calcula el tiempo restante para un trabajo en segundos"""
         try:
-            return max(0.0, float(deadline_ts) - float(self.get_game_time()))
-        except Exception:
+            deadline_str = job_data.get("deadline")
+            if not deadline_str:
+                return float("inf")  # Sin deadline
+
+            # Convertir deadline a timestamp
+            from datetime import datetime
+            deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+            deadline_ts = deadline_dt.timestamp()
+
+            # Obtener tiempo actual del juego
+            current_ts = self.get_game_start_timestamp() + self.get_game_time()
+
+            return deadline_ts - current_ts
+
+        except Exception as e:
+            print(f"[TIME] Error calculando tiempo restante: {e}")
+            return float("inf")
+
+    def get_job_total_time(self, job_data: dict) -> float:
+        """Calcula el tiempo total disponible para el trabajo"""
+        try:
+            deadline_str = job_data.get("deadline")
+            release_time = job_data.get("release_time", 0)
+
+            if not deadline_str:
+                return float("inf")
+
+            # Convertir deadline a timestamp relativo
+            from datetime import datetime
+            deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+            game_start_dt = datetime.fromisoformat(self.map_start_time.replace('Z', '+00:00'))
+
+            total_seconds = (deadline_dt - game_start_dt).total_seconds()
+            return total_seconds - release_time
+
+        except Exception as e:
+            print(f"[TIME] Error calculando tiempo total: {e}")
             return float("inf")
 
     # ---------------- Actualización ----------------

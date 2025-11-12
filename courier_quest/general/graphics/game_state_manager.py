@@ -1,3 +1,4 @@
+#game_state_manager.py
 """
 Game State Manager - Handles game state initialization and management
 """

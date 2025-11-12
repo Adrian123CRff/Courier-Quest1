@@ -1,3 +1,4 @@
+#jobs_logic.py
 from __future__ import annotations
 
 from typing import Any, Dict
@@ -208,94 +209,79 @@ class JobsLogic:
         except Exception:
             pass
 
-        try:
-            if v.game_manager:
-                for name in [
-                    "register_delivery",
-                    "on_job_delivered",
-                    "complete_delivery",
-                    "record_delivery",
-                    "apply_delivery",
-                ]:
-                    if hasattr(v.game_manager, name):
-                        try:
-                            getattr(v.game_manager, name)(jid, payout, on_time)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
-        try:
-            ss = v.score_system
-            if ss:
-                for name in [
-                    "register_delivery",
-                    "record_delivery",
-                    "add_delivery",
-                    "on_delivery_completed",
-                ]:
-                    if hasattr(ss, name):
-                        try:
-                            getattr(ss, name)(jid, payout, on_time)
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
-        # ✅ CORREGIDO: Usar el sistema de reputación correcto según requerimientos
+        # ✅ CORREGIDO: Cálculo de tiempo real para determinar tipo de entrega
         try:
             if v.player_stats and hasattr(v.player_stats, "update_reputation"):
                 base_rep = v.player_stats.reputation
                 print(f"[REPUTATION] Base reputation: {base_rep}")
 
-                # Calcular tiempo restante para determinar tipo de entrega
+                # Inicializar variables para el cálculo
                 seconds_late = 0
                 early_percent = 0
                 event_type = "delivery_on_time"
 
                 if v.game_manager and job:
                     try:
-                        remaining = v.game_manager.get_job_time_remaining(getattr(job, "raw", {}))
-                        if remaining != float("inf"):
-                            if remaining < 0:
-                                # Entregado tarde
+                        # Obtener información de tiempo del trabajo
+                        raw_data = getattr(job, "raw", {})
+                        deadline_str = raw_data.get("deadline")
+
+                        if deadline_str:
+                            # Calcular tiempo restante usando GameManager
+                            remaining = v.game_manager.get_job_time_remaining(raw_data)
+                            print(f"[TIME] Job {jid}: remaining time = {remaining}s")
+
+                            if remaining == float("inf"):
+                                # Sin deadline - siempre a tiempo
+                                event_type = "delivery_on_time"
+                            elif remaining >= 0:
+                                # A tiempo o temprano
+                                # Calcular si es entrega temprana (≥20% del tiempo total)
+                                total_time = v.game_manager.get_job_total_time(raw_data)
+                                if total_time > 0:
+                                    early_percent = (remaining / total_time) * 100
+                                    if early_percent >= 20:
+                                        event_type = "delivery_early"
+                                        print(f"[TIME] Early delivery: {early_percent:.1f}% early")
+                                    else:
+                                        event_type = "delivery_on_time"
+                                        print(f"[TIME] On-time delivery: {early_percent:.1f}% remaining")
+                            else:
+                                # Tarde
                                 seconds_late = abs(remaining)
                                 event_type = "delivery_late"
-                            elif remaining > 0:
-                                # Calcular si es entrega temprana
-                                deadline_ts = getattr(job, "raw", {}).get("deadline_timestamp")
-                                if deadline_ts:
-                                    total_time = deadline_ts - getattr(job, "raw", {}).get("release_time", 0)
-                                    if total_time > 0:
-                                        early_percent = (remaining / total_time) * 100
-                                        if early_percent >= 20:
-                                            event_type = "delivery_early"
-                    except Exception:
-                        pass
+                                print(f"[TIME] Late delivery: {seconds_late:.1f}s late")
 
-                # Actualizar reputación con el sistema correcto
+                    except Exception as e:
+                        print(f"[TIME] Error calculando tiempo entrega: {e}")
+                        # Fallback: usar el valor 'on_time' que viene del caller
+                        event_type = "delivery_on_time" if on_time else "delivery_late"
+
+                # Actualizar reputación con el evento correcto
                 rep_delta = v.player_stats.update_reputation(event_type, {
                     "seconds_late": seconds_late,
                     "early_percent": early_percent
                 })
 
-                print(f"[REPUTATION] Modifications: {event_type} -> {rep_delta:+d} points")
+                print(f"[REPUTATION] Event: {event_type} -> {rep_delta:+d} points")
                 print(f"[REPUTATION] New reputation: {v.player_stats.reputation}")
 
                 # Aplicar multiplicador de pago por reputación alta
-                if v.player_stats.get_payment_multiplier() > 1.0:
-                    bonus_payout = payout * 0.05  # 5% extra
+                payment_multiplier = v.player_stats.get_payment_multiplier()
+                if payment_multiplier > 1.0:
+                    bonus_payout = payout * (payment_multiplier - 1.0)
                     v._add_money(bonus_payout)
-                    print(f"[MONEY] Reputation bonus adjustment: +${bonus_payout:.2f} (high reputation multiplier)")
+                    print(f"[MONEY] Reputation bonus: +${bonus_payout:.2f}")
 
-                print(f"[MONEY] Total payout: ${payout:.2f} (base) + bonuses")
+                print(
+                    f"[MONEY] Total payout: ${payout:.2f} (base) + ${bonus_payout if payment_multiplier > 1.0 else 0:.2f} (bonus)")
 
         except Exception as e:
             print(f"[REPUTATION] Error actualizando reputación: {e}")
             # Fallback al sistema simple si hay error
             try:
                 rep = getattr(v.player_stats, "reputation", 70)
-                rep += 3 if on_time else -2  # Sistema básico como fallback
+                rep += 3 if on_time else -2
                 setattr(v.player_stats, "reputation", max(0, min(100, rep)))
             except Exception:
                 pass

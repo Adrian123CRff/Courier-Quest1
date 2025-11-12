@@ -122,10 +122,15 @@ class Player:
             return 0.2
         return 0.0
 
+    # player_manager.py - PARCHE PARA FÓRMULA DE VELOCIDAD
+
     def update(self, dt: float, player_stats: Any = None, weather_system: Any = None, inventory: Any = None) -> None:
         """
         Actualiza la posición (moviéndose hacia target). Al llegar al centro de la celda
         consume stamina POR CELDA completada llamando a player_stats.consume_stamina(...).
+
+        FÓRMULA CORREGIDA SEGÚN PDF:
+        v = v0 * Mclima * Mpeso * Mrep * Mresistencia * surface_weight(tile)
         """
         if not self.moving:
             # mantener sprite centrado
@@ -144,10 +149,14 @@ class Player:
         except Exception:
             pass
 
-        # velocidad en píxeles/seg
+        # velocidad base en píxeles/seg (v0)
         pixels_per_sec = self.base_cells_per_sec * self.tile_size
 
-        # multiplicador climático (si weather_system es WeatherMarkov)
+        # =======================
+        # FACTORES DE VELOCIDAD - CORREGIDOS SEGÚN PDF
+        # =======================
+
+        # 1. Mclima - multiplicador climático
         climate_mul = 1.0
         try:
             if weather_system is not None:
@@ -158,7 +167,23 @@ class Player:
         except Exception:
             climate_mul = 1.0
 
-        # multiplicador por stamina
+        # 2. Mpeso - multiplicador por peso del inventario (SEGÚN PDF: max(0.8, 1 - 0.03 * peso_total))
+        weight_mul = 1.0
+        try:
+            weight = float(getattr(inventory, "current_weight", 0.0)) if inventory is not None else 0.0
+            weight_mul = max(0.8, 1.0 - 0.03 * weight)  # ✅ CORREGIDO: 0.8 según PDF
+        except Exception:
+            weight_mul = 1.0
+
+        # 3. Mrep - multiplicador por reputación (NUEVO - FALTABA)
+        reputation_mul = 1.0
+        try:
+            if stats and hasattr(stats, "reputation"):
+                reputation_mul = 1.03 if stats.reputation >= 90 else 1.0  # ✅ AÑADIDO: +5% si reputación ≥90
+        except Exception:
+            reputation_mul = 1.0
+
+        # 4. Mresistencia - multiplicador por estado de stamina
         stamina_mul = 1.0
         try:
             if stats and hasattr(stats, "get_speed_multiplier"):
@@ -166,18 +191,13 @@ class Player:
         except Exception:
             stamina_mul = 1.0
 
-        # multiplicador por peso del inventario
-        weight_mul = 1.0
-        try:
-            weight = float(getattr(inventory, "current_weight", 0.0)) if inventory is not None else 0.0
-            weight_mul = max(0.7, 1.0 - 0.03 * weight)
-        except Exception:
-            weight_mul = 1.0
+        # 5. surface_weight - multiplicador por superficie del terreno (CORREGIDO: multiplicador, no divisor)
+        surface_mul = self.target_surface_weight  # ✅ CORREGIDO: usar directamente, no 1.0/valor
 
-        # multiplicador por peso de la superficie
-        surface_mul = 1.0 / self.target_surface_weight
-
-        final_speed = pixels_per_sec * climate_mul * stamina_mul * weight_mul * surface_mul
+        # =======================
+        # FÓRMULA FINAL CORREGIDA
+        # =======================
+        final_speed = pixels_per_sec * climate_mul * weight_mul * reputation_mul * stamina_mul * surface_mul
 
         # desplazar hacia target
         dx = self.target_pixel_x - self.pixel_x
@@ -191,7 +211,8 @@ class Player:
 
             # determinar nueva celda lógica (más robusto)
             new_cx = int(self.pixel_x // self.tile_size)
-            new_cy = int((self.map_rows * self.tile_size - self.pixel_y) // self.tile_size) if self.flip_y else int(self.pixel_y // self.tile_size)
+            new_cy = int((self.map_rows * self.tile_size - self.pixel_y) // self.tile_size) if self.flip_y else int(
+                self.pixel_y // self.tile_size)
             self.cell_x, self.cell_y = new_cx, new_cy
 
             self.moving = False
@@ -199,7 +220,7 @@ class Player:
             # Consumir stamina POR CELDA completada (si stats enlazados)
             try:
                 if stats and hasattr(stats, "consume_stamina"):
-                    base_cost = 0.5  # 0.5 por celda
+                    base_cost = 0.5  # 0.5 por celda según PDF
                     weight_val = float(getattr(inventory, "current_weight", 0.0)) if inventory is not None else 0.0
                     current_weather = "clear"
                     intensity = 1.0

@@ -1,3 +1,4 @@
+# Undo manager for game state
 from __future__ import annotations
 
 import copy

@@ -1,3 +1,4 @@
+#input_handler.py
 """
 Input Handler - Manages all keyboard and mouse input
 """
@@ -225,6 +226,9 @@ class InputHandler:
                 self.parent.show_notification("❌ Error al cargar")
             return
 
+        if key == arcade.key.C and (modifiers & arcade.key.MOD_CTRL):
+            self._cancel_current_job_offer()
+            return
         # Manejo de movimiento con WASD y flechas
         dx, dy = 0, 0
         if key == arcade.key.UP or key == arcade.key.W:
@@ -352,3 +356,58 @@ class InputHandler:
                     self.parent.show_notification(f"Item {self.parent.inventory_view_index + 1} de {len(items)}")
         except Exception:
             pass
+
+    def _cancel_current_job(self):
+        """Cancela el pedido actualmente seleccionado en el inventario"""
+        try:
+            # Obtener inventario
+            inv = self.parent.state.get("inventory") if isinstance(self.parent.state, dict) else getattr(
+                self.parent.state, "inventory", None)
+            if not inv:
+                self.parent.show_notification("No hay inventario disponible")
+                return
+
+            # Obtener items del inventario
+            items = []
+            if hasattr(inv, 'deque') and inv.deque:
+                items = list(inv.deque)
+            elif hasattr(inv, 'items') and inv.items:
+                items = list(inv.items)
+            elif hasattr(inv, '__iter__'):
+                items = list(inv)
+
+            if not items:
+                self.parent.show_notification("No hay pedidos en el inventario")
+                return
+
+            # Obtener el trabajo actual
+            if self.parent.inventory_view_index >= len(items):
+                self.parent.inventory_view_index = 0
+
+            current_job = items[self.parent.inventory_view_index]
+            job_id = getattr(current_job, "id", None)
+
+            if not job_id:
+                self.parent.show_notification("No se puede identificar el pedido")
+                return
+
+            # Aplicar penalización de reputación
+            if hasattr(self.parent.player_stats, "update_reputation"):
+                rep_change = self.parent.player_stats.update_reputation("cancel_order")
+                self.parent.show_notification(f"Pedido cancelado. Reputación: {rep_change:+d}")
+
+            # Remover del inventario
+            self.parent.jobs_logic.remove_job_from_inventory(current_job)
+
+            # Marcar como cancelado en el job_manager
+            if self.parent.job_manager:
+                job_obj = self.parent.job_manager.get_job(job_id)
+                if job_obj:
+                    job_obj.accepted = False
+                    job_obj.rejected = True
+
+            self.parent.show_notification(f"Pedido {job_id} cancelado")
+
+        except Exception as e:
+            print(f"[CANCEL] Error cancelando pedido: {e}")
+            self.parent.show_notification("Error al cancelar pedido")

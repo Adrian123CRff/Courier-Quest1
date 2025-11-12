@@ -1,3 +1,4 @@
+#update_manager.py
 """
 Update Manager - Handles game update logic and timers
 """

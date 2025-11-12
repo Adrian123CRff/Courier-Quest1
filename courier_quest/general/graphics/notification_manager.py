@@ -1,5 +1,5 @@
+# notification_manager.py - REEMPLAZAR COMPLETAMENTE
 from __future__ import annotations
-
 from typing import Any
 import arcade
 
@@ -8,42 +8,61 @@ class NotificationManager:
     def __init__(self, view: Any) -> None:
         self.view = view
 
-    # Timers and spawning logic
     def update_timers(self, dt: float) -> None:
+        """Actualiza temporizadores usando tiempo real del juego"""
         v = self.view
+
         if v.job_notification_active:
             v.job_notification_timer -= dt
             if v.job_notification_timer <= 0:
                 self.reject_current()
+                return
 
-        if v.next_spawn_timer > 0.0:
-            v.next_spawn_timer -= dt
+        # ✅ NUEVO: Verificar trabajos disponibles por release_time REAL
+        self.check_available_jobs_by_release_time()
 
-        if not v.job_notification_active:
-            self.maybe_start_notification()
-
-    def maybe_start_notification(self) -> None:
+    def check_available_jobs_by_release_time(self) -> None:
+        """Verifica trabajos disponibles basado en release_time real"""
         v = self.view
-        if v.job_notification_active or v.next_spawn_timer > 0.0:
+        if v.job_notification_active or not v.game_manager:
             return
-        v.incoming_raw_jobs = [r for r in v.incoming_raw_jobs if v._raw_job_id(r) not in v.accepted_job_ids]
-        if v.incoming_raw_jobs:
-            self.spawn_next_notification_immediate()
 
-    def spawn_next_notification_immediate(self) -> None:
+        try:
+            current_game_time = v.game_manager.get_game_time()
+
+            # Filtrar trabajos cuyo release_time ya pasó
+            available_now = []
+            for job_data in v.incoming_raw_jobs[:]:  # Copia para modificar
+                release_time = job_data.get("release_time", 0)
+
+                # ✅ USAR release_time REAL, no timer artificial
+                if release_time <= current_game_time:
+                    available_now.append(job_data)
+                    v.incoming_raw_jobs.remove(job_data)
+
+            # Mostrar notificaciones para trabajos disponibles
+            for job_data in available_now:
+                if not v.job_notification_active:
+                    self.spawn_next_notification_immediate(job_data)
+                    break  # Mostrar uno a la vez
+
+        except Exception as e:
+            print(f"[NOTIFICATION] Error verificando trabajos: {e}")
+
+    def spawn_next_notification_immediate(self, job_data) -> None:
+        """Muestra notificación para un trabajo específico"""
         v = self.view
-        if not v.incoming_raw_jobs:
-            return
-        raw = v.incoming_raw_jobs.pop(0)
         v.job_notification_active = True
-        v.job_notification_data = raw
+        v.job_notification_data = job_data
         v.job_notification_timer = v.NOTIF_ACCEPT_SECONDS
 
-        jid = v._raw_job_id(raw)
-        payout = v._get_job_payout(raw)
-        weight = raw.get("weight", 0)
+        jid = v._raw_job_id(job_data)
+        payout = v._get_job_payout(job_data)
+        weight = job_data.get("weight", 0)
+
         v.show_notification(f"📦 NUEVO PEDIDO\nID:{jid} Pago:${payout} Peso:{weight}kg\n(A) Aceptar (R) Rechazar")
 
+    # ... (mantener accept_current, reject_current, draw sin cambios)
     def accept_current(self) -> None:
         v = self.view
         if not v.job_notification_data:
@@ -122,17 +141,27 @@ class NotificationManager:
         if v.game_manager:
             try:
                 time_remaining = v.game_manager.get_job_time_remaining(raw)
-                if time_remaining != float('inf'):
+                total_time = v.game_manager.get_job_total_time(raw)
+
+                if time_remaining != float('inf') and total_time != float('inf'):
                     minutes = int(time_remaining // 60)
                     seconds = int(time_remaining % 60)
-                    time_color = arcade.color.GREEN if time_remaining > 300 else arcade.color.ORANGE if time_remaining > 60 else arcade.color.RED
-                    Text(f"Tiempo límite: {minutes:02d}:{seconds:02d}", left + 15, time_y, time_color, 12).draw()
-                    time_y -= 20
-            except Exception:
-                pass
 
-        controls_y = bottom + 30
-        Text("(A) Aceptar  (R) Rechazar", left + 15, controls_y, (255, 255, 0), 12).draw()  # Amarillo
-        Text(f"Decidir en: {int(v.job_notification_timer)}s", left + 15, controls_y - 20, (255, 99, 71), 12).draw()  # Rojo coral
+                    # Calcular porcentaje de tiempo restante
+                    time_percent = (time_remaining / total_time) * 100 if total_time > 0 else 0
+
+                    # Color basado en urgencia
+                    if time_percent >= 50:
+                        time_color = arcade.color.GREEN
+                    elif time_percent >= 25:
+                        time_color = arcade.color.ORANGE
+                    else:
+                        time_color = arcade.color.RED
+
+                    Text(f"Tiempo límite: {minutes:02d}:{seconds:02d}", left + 15, time_y, time_color, 12).draw()
+                    Text(f"({time_percent:.0f}% restante)", left + 15, time_y - 15, time_color, 10).draw()
+                    time_y -= 30
+            except Exception as e:
+                print(f"[NOTIFICATION] Error mostrando tiempo: {e}")
 
 
