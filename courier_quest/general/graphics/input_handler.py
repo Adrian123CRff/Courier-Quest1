@@ -12,6 +12,7 @@ class InputHandler:
 
     def __init__(self, parent_view):
         self.parent = parent_view
+        self.waiting_for_undo_steps = False
 
     def on_key_press(self, key: int, modifiers: int) -> None:
         """Handle key press events."""
@@ -226,9 +227,44 @@ class InputHandler:
                 self.parent.show_notification("❌ Error al cargar")
             return
 
-        if key == arcade.key.C and (modifiers & arcade.key.MOD_CTRL):
-            self._cancel_current_job_offer()
+        # C: cancelar pedido seleccionado del inventario (penaliza reputación)
+        if key == arcade.key.C:
+            self._cancel_current_job()
             return
+
+        # Z: undo N steps (prompt for number)
+        if key == arcade.key.Z:
+            if self.waiting_for_undo_steps:
+                # Cancelar si ya estaba esperando
+                self.waiting_for_undo_steps = False
+                self.parent.show_notification("Deshacer cancelado")
+            else:
+                self.waiting_for_undo_steps = True
+                self.parent.show_notification("Ingresa número de pasos a deshacer (1-9):")
+            return
+
+        # Si estamos esperando el número de pasos para undo
+        if self.waiting_for_undo_steps:
+            if key >= arcade.key.KEY_1 and key <= arcade.key.KEY_9:
+                n = key - arcade.key.KEY_0
+                self.waiting_for_undo_steps = False
+                # Ejecutar undo N steps
+                undone = False
+                if self.parent.game_manager and hasattr(self.parent.game_manager, 'undo_n_steps'):
+                    try:
+                        undone = bool(self.parent.game_manager.undo_n_steps(n))
+                    except Exception as e:
+                        print(f"[INPUT] Error en undo_n_steps: {e}")
+                if undone:
+                    self.parent.show_notification(f"{n} acciones deshechas")
+                else:
+                    self.parent.show_notification("No se pudieron deshacer las acciones")
+            else:
+                # Cancelar si no es número válido
+                self.waiting_for_undo_steps = False
+                self.parent.show_notification("Deshacer cancelado")
+            return
+
         # Manejo de movimiento con WASD y flechas
         dx, dy = 0, 0
         if key == arcade.key.UP or key == arcade.key.W:
@@ -392,21 +428,34 @@ class InputHandler:
                 return
 
             # Aplicar penalización de reputación
+            rep_change = 0
             if hasattr(self.parent.player_stats, "update_reputation"):
                 rep_change = self.parent.player_stats.update_reputation("cancel_order")
-                self.parent.show_notification(f"Pedido cancelado. Reputación: {rep_change:+d}")
 
             # Remover del inventario
             self.parent.jobs_logic.remove_job_from_inventory(current_job)
 
-            # Marcar como cancelado en el job_manager
+            # Marcar como cancelado en el job_manager y ocultar marcadores
             if self.parent.job_manager:
                 job_obj = self.parent.job_manager.get_job(job_id)
                 if job_obj:
                     job_obj.accepted = False
                     job_obj.rejected = True
+                    # Asegurar que el pickup/dropoff desaparezcan del mapa
+                    try:
+                        job_obj.picked_up = False
+                        job_obj.dropoff_visible = False
+                        job_obj.visible_pickup = False
+                        job_obj.completed = False
+                    except Exception:
+                        pass
+                    # Registrar en el JobManager para consistencia
+                    try:
+                        self.parent.job_manager.mark_rejected(job_id)
+                    except Exception:
+                        pass
 
-            self.parent.show_notification(f"Pedido {job_id} cancelado")
+            self.parent.show_notification(f"Pedido {job_id} cancelado. Reputación: {rep_change:+d}")
 
         except Exception as e:
             print(f"[CANCEL] Error cancelando pedido: {e}")

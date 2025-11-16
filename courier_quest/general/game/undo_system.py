@@ -44,6 +44,24 @@ class UndoSystem:
         self.current_step -= 1
         return previous_state
 
+    def undo_n_steps(self, n: int) -> bool:
+        """Restaura los últimos N estados del juego."""
+        if n <= 0:
+            return False
+        if self.undo_stack.is_empty():
+            return False
+
+        # Limitar N al número de estados disponibles
+        available_steps = len(self.undo_stack)
+        steps_to_undo = min(n, available_steps)
+
+        try:
+            for _ in range(steps_to_undo):
+                self.undo()
+            return True
+        except Exception:
+            return False
+
     def can_undo(self) -> bool:
         """Verifica si hay estados anteriores para restaurar."""
         return not self.undo_stack.is_empty()

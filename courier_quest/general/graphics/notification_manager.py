@@ -85,6 +85,20 @@ class NotificationManager:
                 job = v.job_manager.get_job(jid)
                 if job:
                     job.accepted = True
+                    # Registrar accepted_at para cronómetro basado en release_time
+                    try:
+                        accepted_at = float(v.game_manager.get_game_time()) if v.game_manager else None
+                    except Exception:
+                        accepted_at = None
+                    if accepted_at is not None:
+                        try:
+                            setattr(job, "accepted_at", accepted_at)
+                        except Exception:
+                            pass
+                        try:
+                            raw["accepted_at"] = accepted_at
+                        except Exception:
+                            pass
                     if not getattr(job, "payout", None):
                         setattr(job, "payout", v._get_job_payout(job) or v._get_job_payout(raw))
             except Exception:
@@ -94,7 +108,15 @@ class NotificationManager:
         v.job_notification_active = False
         v.job_notification_data = None
         v.next_spawn_timer = v.NEXT_SPAWN_AFTER_ACCEPT
-        v.show_notification(f"✅ Pedido {jid} aceptado")
+        # Mostrar reputación actual para facilitar ver el contraste si luego se cancela
+        try:
+            rep = getattr(v.player_stats, "reputation", None)
+            if rep is not None:
+                v.show_notification(f"✅ Pedido {jid} aceptado. Reputación: {int(rep)}")
+            else:
+                v.show_notification(f"✅ Pedido {jid} aceptado")
+        except Exception:
+            v.show_notification(f"✅ Pedido {jid} aceptado")
 
     def reject_current(self) -> None:
         v = self.view

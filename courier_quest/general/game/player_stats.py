@@ -24,6 +24,12 @@ class PlayerStats:
     def __init__(self):
         self.stamina: float = 100.0
 
+        # Cuando la stamina llega a 0, activamos un bloqueo que impide
+        # cualquier movimiento hasta que la stamina se recupere por encima
+        # del umbral EXHAUSTION_UNLOCK_THRESHOLD (>= 30).
+        self.EXHAUSTION_UNLOCK_THRESHOLD: float = 30.0
+        self._exhaustion_locked: bool = False
+
         # Recuperación discreta: +3 puntos por cada 1.0s acumulado
         self.RECOVER_PER_TICK: float = 3.0
         self.RECOVER_TICK_SEC: float = 1.0
@@ -38,6 +44,8 @@ class PlayerStats:
         self.reputation: int = 70
         self.consecutive_on_time_deliveries = 0
         self.first_late_delivery_of_day = True
+        # historial de reputación para auditoría
+        self.reputation_history = []
 
     def update(self,
                delta_time: float,
@@ -76,6 +84,14 @@ class PlayerStats:
             self._idle_recover_accum = 0.0
             self.is_resting = False
 
+        # Si está bloqueado por agotamiento, desbloquear únicamente cuando
+        # la stamina alcance o supere el umbral de desbloqueo.
+        try:
+            if self._exhaustion_locked and self.stamina >= self.EXHAUSTION_UNLOCK_THRESHOLD:
+                self._exhaustion_locked = False
+        except Exception:
+            pass
+
     def get_stamina_state(self) -> str:
         """
         Retorna:
@@ -112,10 +128,26 @@ class PlayerStats:
 
         total_cost = base_cost + weight_penalty + float(weather_penalty) * intensity
         self.stamina = max(0.0, self.stamina - total_cost)
+        # Si al consumir llegamos a 0 -> activar bloqueo de agotamiento
+        if self.stamina <= 0.0:
+            self.stamina = 0.0
+            self._exhaustion_locked = True
         return True
 
     def can_move(self) -> bool:
-        """El jugador sólo puede iniciar movimiento si stamina > 0."""
+        """Determina si el jugador puede iniciar movimiento.
+
+        Comportamiento requerido:
+        - Si el jugador está bloqueado por agotamiento (había llegado a 0),
+          no puede moverse hasta que la stamina sea >= EXHAUSTION_UNLOCK_THRESHOLD.
+        - En condiciones normales (no bloqueado), puede moverse si tiene
+          algo de stamina (> 0.0).
+        """
+        try:
+            if self._exhaustion_locked:
+                return False
+        except Exception:
+            pass
         return self.stamina > 0.0
 
     # reputación, helpers y reset (idénticos a la versión anterior)
@@ -133,6 +165,10 @@ class PlayerStats:
             if early_percent >= 20:
                 reputation_change = 5
                 self.consecutive_on_time_deliveries += 1
+                # aplicar bonus de racha en tempranas también
+                if self.consecutive_on_time_deliveries >= 3:
+                    reputation_change += 2
+                    self.consecutive_on_time_deliveries = 0
         elif event_type == "delivery_late":
             seconds_late = data.get("seconds_late", 0)
             if seconds_late <= 30:
@@ -154,6 +190,17 @@ class PlayerStats:
 
         self.reputation += reputation_change
         self.reputation = max(0, min(100, self.reputation))
+        try:
+            # registrar en historial
+            self.reputation_history.append({
+                "timestamp": time.time(),
+                "event": event_type,
+                "change": reputation_change,
+                "reputation": self.reputation,
+                "data": dict(data) if isinstance(data, dict) else data,
+            })
+        except Exception:
+            pass
         return reputation_change
 
     def get_payment_multiplier(self) -> float:
@@ -164,7 +211,12 @@ class PlayerStats:
 
     def reset(self):
         self.stamina = 100.0
+        self._exhaustion_locked = False
         self.reputation = 70
         self.consecutive_on_time_deliveries = 0
         self.first_late_delivery_of_day = True
         self._idle_recover_accum = 0.0
+        try:
+            self.reputation_history.clear()
+        except Exception:
+            self.reputation_history = []

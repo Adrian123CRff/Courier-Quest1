@@ -4,9 +4,10 @@ GameManager: gestiona tiempo simulado, trabajos (via JobManager), inventario/ent
 interacción con player_manager (vista/player), undo, y reglas de fin de juego.
 Diseñado para ser tolerante a distintos formatos de datos del API / state.
 """
+from __future__ import annotations
 import time
 import logging
-from datetime import datetime, timedelta
+import datetime
 from typing import Dict, Any, Optional
 
 from .score_system import ScoreSystem
@@ -38,7 +39,7 @@ class GameManager:
 
         # mapa / tiempo del mapa (API)
         self.game_map = None
-        self.map_start_time: Optional[datetime] = None
+        self.map_start_time: Optional[datetime.datetime] = None
         self.max_game_duration: Optional[float] = None  # segundos
 
     # ---------------- Inicialización ----------------
@@ -70,7 +71,7 @@ class GameManager:
         except Exception as e:
             print(f"[GAME_MANAGER] Warning: fallo al configurar sistema de tiempo: {e}")
             if not self.map_start_time:
-                self.map_start_time = datetime.now()
+                self.map_start_time = datetime.datetime.now()
             if self.max_game_duration is None and map_data:
                 try:
                     self.max_game_duration = float(map_data.get("max_time", 15 * 60))
@@ -123,14 +124,36 @@ class GameManager:
             self.max_game_duration = max_time
         self._process_job_deadlines(jobs_data)
 
-    def _parse_iso_time(self, time_str: str) -> datetime:
+    def _parse_iso_time(self, time_str: Any) -> datetime.datetime:
+        """Parsea tiempo ISO - VERSIÓN MEJORADA"""
         try:
-            if isinstance(time_str, str) and time_str.endswith("Z"):
+            if isinstance(time_str, datetime.datetime):
+                return time_str  # Ya es datetime, retornar directamente
+
+            if not isinstance(time_str, str):
+                print(f"[TIME] Warning: time_str no es string: {type(time_str)}")
+                return datetime.datetime.now()
+
+            # Limpiar y formatear la cadena
+            time_str = time_str.strip()
+            if time_str.endswith("Z"):
                 time_str = time_str[:-1] + "+00:00"
-            return datetime.fromisoformat(time_str)
+
+            # Intentar parsear con diferentes formatos
+            try:
+                return datetime.datetime.fromisoformat(time_str)
+            except ValueError:
+                # Fallback para formatos ligeramente diferentes
+                for fmt in ["%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d %H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"]:
+                    try:
+                        return datetime.datetime.strptime(time_str, fmt)
+                    except ValueError:
+                        continue
+                # Último fallback
+                return datetime.datetime.now()
         except Exception as e:
-            print(f"[GAME_MANAGER] Error parseando ISO time '{time_str}': {e}")
-            return datetime.now()
+            print(f"[TIME] Error crítico parseando tiempo '{time_str}': {e}")
+            return datetime.datetime.now()
 
     def _process_job_deadlines(self, jobs_data: Optional[list]):
         if not jobs_data or not self.map_start_time:
@@ -174,10 +197,10 @@ class GameManager:
         except Exception:
             return float("inf")
 
-    def get_current_map_time(self) -> datetime:
+    def get_current_map_time(self) -> datetime.datetime:
         if not self.map_start_time:
-            return datetime.now()
-        return self.map_start_time + timedelta(seconds=self.get_game_time())
+            return datetime.datetime.now()
+        return self.map_start_time + datetime.timedelta(seconds=self.get_game_time())
 
     # ---------------- Caducidad de trabajos ----------------
     def is_job_expired(self, job_data: Dict[str, Any]) -> bool:
@@ -191,21 +214,57 @@ class GameManager:
         except Exception:
             return False
 
-    def get_job_time_remaining(self, job_data: dict) -> float:
-        """Calcula el tiempo restante para un trabajo en segundos"""
+    def get_game_start_timestamp(self) -> float:
+        """Obtiene el timestamp de inicio del juego - VERSIÓN CORREGIDA"""
         try:
+            if hasattr(self, 'map_start_time') and self.map_start_time is not None:
+                # map_start_time ya es un objeto datetime, usar directamente
+                return self.map_start_time.timestamp()
+            elif hasattr(self, '_game_start_epoch'):
+                return self._game_start_epoch
+            else:
+                # Fallback al tiempo actual menos el tiempo transcurrido
+                import time
+                current_time = time.time()
+                game_time = self.get_game_time()
+                return current_time - game_time
+        except Exception as e:
+            print(f"[TIME] Error obteniendo start timestamp: {e}")
+            import time
+            return time.time()
+
+    def get_job_time_remaining(self, job_data: dict) -> float:
+        """Calcula el tiempo restante para un trabajo.
+        Si existe `accepted_at` y `release_time > 0`, usa ventana desde la aceptación.
+        En caso contrario, si hay `deadline`, usa tiempo hasta deadline.
+        Si no hay deadline, retorna infinito.
+        """
+        try:
+            # Ventana por release_time desde aceptación
+            release_time = job_data.get("release_time", 0)
+            accepted_at = job_data.get("accepted_at")
+            try:
+                release_time = float(release_time or 0.0)
+            except (TypeError, ValueError):
+                release_time = 0.0
+            try:
+                accepted_at = float(accepted_at) if accepted_at is not None else None
+            except (TypeError, ValueError):
+                accepted_at = None
+
+            if release_time > 0.0 and accepted_at is not None:
+                current_game_time = float(self.get_game_time())
+                elapsed_since_accept = current_game_time - accepted_at
+                return release_time - elapsed_since_accept
+
+            # Fallback: tiempo hasta deadline
             deadline_str = job_data.get("deadline")
             if not deadline_str:
-                return float("inf")  # Sin deadline
-
-            # Convertir deadline a timestamp
-            from datetime import datetime
-            deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+                return float("inf")
+            game_start_ts = self.get_game_start_timestamp()
+            deadline_dt = datetime.datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
             deadline_ts = deadline_dt.timestamp()
-
-            # Obtener tiempo actual del juego
-            current_ts = self.get_game_start_timestamp() + self.get_game_time()
-
+            current_ts = game_start_ts + float(self.get_game_time())
             return deadline_ts - current_ts
 
         except Exception as e:
@@ -213,21 +272,29 @@ class GameManager:
             return float("inf")
 
     def get_job_total_time(self, job_data: dict) -> float:
-        """Calcula el tiempo total disponible para el trabajo"""
+        """Calcula el tiempo total disponible para el trabajo.
+        Si el pedido usa ventana por `release_time` y fue aceptado, el total es `release_time`.
+        En caso contrario, usa (deadline - (game_start + release_time)).
+        """
         try:
-            deadline_str = job_data.get("deadline")
             release_time = job_data.get("release_time", 0)
+            accepted_at = job_data.get("accepted_at")
+            try:
+                release_time = float(release_time or 0.0)
+            except (TypeError, ValueError):
+                release_time = 0.0
+            if release_time > 0.0 and accepted_at is not None:
+                return release_time
 
+            deadline_str = job_data.get("deadline")
             if not deadline_str:
                 return float("inf")
 
-            # Convertir deadline a timestamp relativo
-            from datetime import datetime
-            deadline_dt = datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
-            game_start_dt = datetime.fromisoformat(self.map_start_time.replace('Z', '+00:00'))
-
-            total_seconds = (deadline_dt - game_start_dt).total_seconds()
-            return total_seconds - release_time
+            game_start_ts = self.get_game_start_timestamp()
+            deadline_dt = datetime.datetime.fromisoformat(deadline_str.replace('Z', '+00:00'))
+            deadline_ts = deadline_dt.timestamp()
+            total_time = deadline_ts - (game_start_ts + release_time)
+            return max(0.0, total_time)
 
         except Exception as e:
             print(f"[TIME] Error calculando tiempo total: {e}")
@@ -476,17 +543,29 @@ class GameManager:
             return False
         try:
             prev = self.undo_system.undo()
-            self.undo_system.restore_state(
-                prev,
-                self.player_state,
-                self.player_state.inventory,
-                self.player_state.weather_system,
-                self.player_manager
-            )
-            self.logger.info("Undo applied")
-            return True
+            if prev is not None:
+                self.undo_system.restore_state(
+                    prev,
+                    self.player_state,
+                    self.player_state.inventory,
+                    self.player_state.weather_system,
+                    self.player_manager
+                )
+                self.logger.info("Undo applied")
+                return True
+            return False
         except Exception as e:
             print(f"[GAME_MANAGER] Error en undo: {e}")
+            return False
+
+    def undo_n_steps(self, n: int) -> bool:
+        """Deshace las últimas N acciones."""
+        if not self.undo_system:
+            return False
+        try:
+            return self.undo_system.undo_n_steps(n)
+        except Exception as e:
+            print(f"[GAME_MANAGER] Error en undo_n_steps: {e}")
             return False
 
     def handle_player_movement(self, dx: int, dy: int):
@@ -502,4 +581,3 @@ class GameManager:
     def game_over(self, message: str):
         self.logger.info(f"Game over: {message}")
         self.is_running = False
-
