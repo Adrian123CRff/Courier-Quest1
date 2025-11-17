@@ -60,8 +60,6 @@ class NotificationManager:
         payout = v._get_job_payout(job_data)
         weight = job_data.get("weight", 0)
 
-        v.show_notification(f"📦 NUEVO PEDIDO\nID:{jid} Pago:${payout} Peso:{weight}kg\n(A) Aceptar (R) Rechazar")
-
     # ... (mantener accept_current, reject_current, draw sin cambios)
     def accept_current(self) -> None:
         v = self.view
@@ -72,7 +70,8 @@ class NotificationManager:
 
         inventory = v.state.get("inventory") if isinstance(v.state, dict) else getattr(v.state, "inventory", None)
         new_weight = float(raw.get("weight", 1.0))
-        if inventory and (getattr(inventory, "current_weight", 0.0) + new_weight > getattr(inventory, "max_weight", 10.0)):
+        if inventory and (
+                getattr(inventory, "current_weight", 0.0) + new_weight > getattr(inventory, "max_weight", 10.0)):
             v.show_notification("❌ Capacidad insuficiente")
             v.rejected_raw_jobs.append(raw)
             v.job_notification_active = False
@@ -139,7 +138,7 @@ class NotificationManager:
         description = raw.get("description", "Sin descripción")
 
         panel_width = 400
-        panel_height = 250
+        panel_height = 230
         left = v.SCREEN_WIDTH - panel_width - 20 if hasattr(v, 'SCREEN_WIDTH') else v.width - panel_width - 20
         bottom = 100
         right = left + panel_width
@@ -147,11 +146,10 @@ class NotificationManager:
 
         from .game_window import _draw_rect_lrbt_filled, _draw_rect_lrbt_outline  # avoid cycle at import time
         # Colores adaptados al tema oscuro del juego
-        _draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))  # Fondo oscuro como el HUD
-        _draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)  # Borde azul claro
 
         from arcade import Text
-        Text("📦 NUEVO PEDIDO", left + 5, top - 25, (255, 215, 0), 16, bold=True).draw()  # Dorado más suave
+        Text("📦 NUEVO PEDIDO", left + panel_width // 2, top - 22, (255, 215, 0), 13, bold=True,
+             anchor_x="center").draw()
 
         info_y = top - 50
         Text(f"ID: {job_id}", left + 15, info_y, arcade.color.WHITE, 12).draw()
@@ -185,5 +183,8 @@ class NotificationManager:
                     time_y -= 30
             except Exception as e:
                 print(f"[NOTIFICATION] Error mostrando tiempo: {e}")
+
+        compact = f"📦 (A) Aceptar  (R) Rechazar"
+        Text(compact, left + 15, bottom + 12, (255, 215, 0), 10).draw()
 
 

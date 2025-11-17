@@ -15,6 +15,46 @@ class NotificationManager:
         self._active = False
         self._anchor = None
 
+    def show_undo_prompt(self, on_confirm):
+        try:
+            self.manager.clear()
+        except Exception:
+            pass
+        v_box = arcade.gui.UIBoxLayout(space_between=10)
+        title = arcade.gui.UITextArea(text="¿Cuántos pasos deseas deshacer?", width=260, height=30, font_size=14)
+        v_box.add(title)
+        input_text = arcade.gui.UIInputText(text="", width=200)
+        v_box.add(input_text)
+        btn_ok = arcade.gui.UIFlatButton(text="Aceptar", width=100)
+        btn_cancel = arcade.gui.UIFlatButton(text="Cancelar", width=100)
+        h_box = arcade.gui.UIBoxLayout(horizontal=True, space_between=10)
+        h_box.add(btn_ok)
+        h_box.add(btn_cancel)
+        v_box.add(h_box)
+
+        @btn_ok.event("on_click")
+        def _on_ok(event):
+            try:
+                n = int(input_text.text.strip())
+            except Exception:
+                n = 0
+            self.hide()
+            try:
+                on_confirm(max(0, n))
+            except Exception:
+                pass
+
+        @btn_cancel.event("on_click")
+        def _on_cancel(event):
+            self.hide()
+
+        anchor = arcade.gui.UIAnchorLayout()
+        anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
+        self.manager.add(anchor)
+        self.manager.enable()
+        self._anchor = anchor
+        self._active = True
+
     def show_job_offer(self, job_raw: Dict[str, Any], on_accept: Callable[[Dict[str, Any]], None],
                        on_reject: Callable[[Dict[str, Any]], None]):
         """Muestra un modal con la info básica del pedido y dos botones."""

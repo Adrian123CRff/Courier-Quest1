@@ -15,19 +15,17 @@ from ..game.player_state import PlayerState
 # --- para la tabla de récords ---
 from ..game.score_system import ScoreSystem, ScoreEntry
 
-
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 800
 SCREEN_TITLE = "Courier Quest"
-
 
 # ========================
 # Tema visual y utilidades
 # ========================
 THEME = {
-    "bg_top": (45, 33, 122),        # morado oscuro
-    "bg_bottom": (29, 20, 88),      # morado más oscuro
-    "panel_fill": (69, 33, 141),    # violeta del panel
+    "bg_top": (45, 33, 122),  # morado oscuro
+    "bg_bottom": (29, 20, 88),  # morado más oscuro
+    "panel_fill": (69, 33, 141),  # violeta del panel
     "panel_outline": (137, 76, 249),
     "text": arcade.color.WHITE,
     "subtext": arcade.color.LIGHT_GRAY,
@@ -40,6 +38,7 @@ THEME = {
 _bike_texture = None
 _bike_sprite = None
 _ui_sprite_list = None
+
 
 def _load_bike_texture():
     global _bike_texture
@@ -155,7 +154,8 @@ def draw_header_and_subtitle(width=None, height=None):
     if width is None: width = SCREEN_WIDTH
     if height is None: height = SCREEN_HEIGHT
     cx = width / 2
-    title = arcade.Text("Courier Quest", cx, height - 90, THEME["text"], font_size=_scale_font(52, height), anchor_x="center")
+    title = arcade.Text("Courier Quest", cx, height - 90, THEME["text"], font_size=_scale_font(52, height),
+                        anchor_x="center")
     subtitle = arcade.Text("Conviértete en el mejor repartidor de la ciudad",
                            cx, height - 140, THEME["subtext"], font_size=_scale_font(20, height), anchor_x="center")
     if texture:
@@ -168,7 +168,7 @@ def draw_header_and_subtitle(width=None, height=None):
             _bike_sprite.scale = 40 / max(texture.width, texture.height)
             if sprite_list is not None:
                 sprite_list.append(_bike_sprite)
-        _bike_sprite.center_x = cx - title.content_width/2 - 40
+        _bike_sprite.center_x = cx - title.content_width / 2 - 40
         _bike_sprite.center_y = height - 92
         if sprite_list is not None:
             try:
@@ -177,10 +177,11 @@ def draw_header_and_subtitle(width=None, height=None):
                 pass
     else:
         # Fallback emoji si no hay textura
-        ix = cx - title.content_width/2 - 40
+        ix = cx - title.content_width / 2 - 40
         iy = height - 92
         arcade.draw_text("🚴", ix - 16, iy - 20, (255, 221, 0), 32)
-    title.draw(); subtitle.draw()
+    title.draw();
+    subtitle.draw()
 
 
 def draw_center_panel(width=None, height=None):
@@ -191,8 +192,10 @@ def draw_center_panel(width=None, height=None):
     panel_h = height * 0.52
     cx = width / 2
     cy = height / 2
-    left = cx - panel_w/2; right = cx + panel_w/2
-    bottom = cy - panel_h/2; top = cy + panel_h/2
+    left = cx - panel_w / 2;
+    right = cx + panel_w / 2
+    bottom = cy - panel_h / 2;
+    top = cy + panel_h / 2
     arcade.draw_lrbt_rectangle_filled(left, right, bottom, top, THEME["panel_fill"])
     try:
         arcade.draw_lrbt_rectangle_outline(left, right, bottom, top, THEME["panel_outline"], border_width=3)
@@ -205,14 +208,16 @@ def draw_center_panel(width=None, height=None):
 
 
 def draw_footer_help(width=None, height=None):
-    msg1 = "Usa las flechas o WASD para moverte"
+    msg1 = "Usa las flechas para moverte"
     msg2 = "Presiona ESC para pausar el juego"
     if width is None: width = SCREEN_WIDTH
     if height is None: height = SCREEN_HEIGHT
     font = _scale_font(16, height)
-    t1 = arcade.Text(msg1, width/2, 90, THEME["subtext"], font, anchor_x="center")
-    t2 = arcade.Text(msg2, width/2, 60, THEME["subtext"], font, anchor_x="center")
-    t1.draw(); t2.draw()
+    t1 = arcade.Text(msg1, width / 2, 90, THEME["subtext"], font, anchor_x="center")
+    t2 = arcade.Text(msg2, width / 2, 60, THEME["subtext"], font, anchor_x="center")
+    t1.draw();
+    t2.draw()
+
 
 # ------------------ Helper: snapshot al guardar ------------------
 def build_save_snapshot(game_view, state_obj_or_dict):
@@ -295,18 +300,18 @@ def build_save_snapshot(game_view, state_obj_or_dict):
                 else:
                     d = {}
                 # completar/asegurar todos los campos importantes
-                d.setdefault("id",        getattr(job, "id", None))
-                d.setdefault("payout",    getattr(job, "payout", 0))
-                d.setdefault("weight",    getattr(job, "weight", 0))
-                d.setdefault("priority",  getattr(job, "priority", 0))
-                d.setdefault("release",   getattr(job, "release_time", getattr(job, "release", 0)))
-                d.setdefault("deadline",  getattr(job, "deadline_seconds", getattr(job, "deadline", 0)))
-                d.setdefault("accepted",  True)
+                d.setdefault("id", getattr(job, "id", None))
+                d.setdefault("payout", getattr(job, "payout", 0))
+                d.setdefault("weight", getattr(job, "weight", 0))
+                d.setdefault("priority", getattr(job, "priority", 0))
+                d.setdefault("release", getattr(job, "release_time", getattr(job, "release", 0)))
+                d.setdefault("deadline", getattr(job, "deadline_seconds", getattr(job, "deadline", 0)))
+                d.setdefault("accepted", True)
                 d.setdefault("picked_up", bool(getattr(job, "picked_up", False)))
                 d.setdefault("completed", bool(getattr(job, "completed", False)))
                 # MUY IMPORTANTE: preservar pickup/dropoff
-                d.setdefault("pickup",   tuple(getattr(job, "pickup", ())) if getattr(job, "pickup", None) else None)
-                d.setdefault("dropoff",  tuple(getattr(job, "dropoff", ())) if getattr(job, "dropoff", None) else None)
+                d.setdefault("pickup", tuple(getattr(job, "pickup", ())) if getattr(job, "pickup", None) else None)
+                d.setdefault("dropoff", tuple(getattr(job, "dropoff", ())) if getattr(job, "dropoff", None) else None)
                 accepted.append(d)
 
         def _as_dict(x):
@@ -355,7 +360,8 @@ def build_save_snapshot(game_view, state_obj_or_dict):
                 "last_rest_time": getattr(game_view.player_stats, "last_rest_time", time.time()),
                 "_idle_recover_accum": getattr(game_view.player_stats, "_idle_recover_accum", 0.0)
             }
-            print(f"[SAVE] Player stats capturadas: stamina={out['player_stats']['stamina']}, reputation={out['player_stats']['reputation']}")
+            print(
+                f"[SAVE] Player stats capturadas: stamina={out['player_stats']['stamina']}, reputation={out['player_stats']['reputation']}")
     except Exception as e:
         print(f"[WARN] Snapshot player_stats: {e}")
 
@@ -371,7 +377,8 @@ def build_save_snapshot(game_view, state_obj_or_dict):
                 "game_start_time": getattr(game_view.score_system, "game_start_time", time.time()),
                 "game_duration": getattr(game_view.score_system, "game_duration", 900)
             }
-            print(f"[SAVE] Score system capturado: money={out['score_system']['total_money']}, deliveries={out['score_system']['deliveries_completed']}")
+            print(
+                f"[SAVE] Score system capturado: money={out['score_system']['total_money']}, deliveries={out['score_system']['deliveries_completed']}")
     except Exception as e:
         print(f"[WARN] Snapshot score_system: {e}")
 
@@ -383,7 +390,8 @@ def build_save_snapshot(game_view, state_obj_or_dict):
                 "current_weight": getattr(game_view.inventory, "current_weight", 0.0),
                 "max_weight": getattr(game_view.inventory, "max_weight", 50.0)
             }
-            print(f"[SAVE] Inventario capturado: {len(out['inventory']['items'])} items, weight={out['inventory']['current_weight']}")
+            print(
+                f"[SAVE] Inventario capturado: {len(out['inventory']['items'])} items, weight={out['inventory']['current_weight']}")
     except Exception as e:
         print(f"[WARN] Snapshot inventory: {e}")
 
@@ -402,7 +410,6 @@ def build_save_snapshot(game_view, state_obj_or_dict):
     return out
 
 
-
 # ========================
 # Vista: Menú Principal
 # ========================
@@ -414,12 +421,14 @@ class MainMenuView(arcade.View):
 
         start_btn = arcade.gui.UIFlatButton(text="Entrar al Menú", width=380)
         v_box.add(start_btn)
+
         @start_btn.event("on_click")
         def on_click_start(event):
             slide_to(self, GameMenuView())
 
         quit_btn = arcade.gui.UIFlatButton(text="Salir", width=260)
         v_box.add(quit_btn)
+
         @quit_btn.event("on_click")
         def on_click_quit(event):
             arcade.close_window()
@@ -432,8 +441,11 @@ class MainMenuView(arcade.View):
 
     def on_show(self):
         arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+
     def on_show_view(self): self.manager.enable()
+
     def on_hide_view(self): self.manager.disable()
+
     def on_draw(self):
         self.clear()
         w, h = self.window.width, self.window.height
@@ -442,7 +454,7 @@ class MainMenuView(arcade.View):
         draw_center_panel(w, h)
         draw_footer_help(w, h)
         self.manager.draw()
-        
+
     def on_resize(self, width, height):
         super().on_resize(width, height)
         new_w = max(260, min(520, int(width * 0.32)))
@@ -460,28 +472,33 @@ class GameMenuView(arcade.View):
 
         new_btn = arcade.gui.UIFlatButton(text="Nueva Partida", width=380)
         v_box.add(new_btn)
+
         @new_btn.event("on_click")
         def on_new(event): slide_to(self, NewGameMenuView())
 
         load_btn = arcade.gui.UIFlatButton(text="Cargar Partida", width=380)
         v_box.add(load_btn)
+
         @load_btn.event("on_click")
         def on_load(event): slide_to(self, LoadMenuView())
 
         # --- Nuevo botón: Tabla de records ---
         records_btn = arcade.gui.UIFlatButton(text="Tabla de records", width=380)
         v_box.add(records_btn)
+
         @records_btn.event("on_click")
         def on_records(event):
             slide_to(self, RecordsView())
 
         instr_btn = arcade.gui.UIFlatButton(text="Instrucciones", width=380)
         v_box.add(instr_btn)
+
         @instr_btn.event("on_click")
         def on_instr(event): slide_to(self, InstructionsView())
 
         back_btn = arcade.gui.UIFlatButton(text="Retroceder", width=260)
         v_box.add(back_btn)
+
         @back_btn.event("on_click")
         def on_back(event): slide_to(self, MainMenuView())
 
@@ -492,8 +509,11 @@ class GameMenuView(arcade.View):
         self.menu_text = arcade.Text("", 0, 0, arcade.color.WHITE, font_size=1)
 
     def on_show_view(self): self.manager.enable()
+
     def on_hide_view(self): self.manager.disable()
+
     def on_show(self): arcade.set_background_color(arcade.color.DARK_SLATE_GRAY)
+
     def on_draw(self):
         self.clear()
         w, h = self.window.width, self.window.height
@@ -521,6 +541,7 @@ class InstructionsView(arcade.View):
         v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=10)
         back_btn = arcade.gui.UIFlatButton(text="Volver", width=200)
         v_box.add(back_btn)
+
         @back_btn.event("on_click")
         def on_back(event):
             slide_to(self, GameMenuView())
@@ -529,15 +550,18 @@ class InstructionsView(arcade.View):
         anchor.add(child=v_box, anchor_x="center_x", anchor_y="bottom", align_y=20)
         self.manager.add(anchor)
 
-        # Textos principales
-        self.header = arcade.Text("Instrucciones", SCREEN_WIDTH/2, SCREEN_HEIGHT - 100,
+        self.header = arcade.Text("Instrucciones", SCREEN_WIDTH / 2, SCREEN_HEIGHT - 100,
                                   THEME["text"], font_size=30, anchor_x="center")
         self.lines = [
-            "Objetivo: completa entregas y gana reputación y dinero.",
-            "Movimiento: WASD o Flechas.",
-            "Pausa: ESC (abre menú de pausa).",
-            "Acepta pedidos desde el panel derecho y planifica tu ruta.",
-            "El clima afecta tu velocidad (ver panel superior).",
+            "Objetivo: completar entregas para ganar dinero y reputación.",
+            "Movimiento: usa solo las Flechas del teclado.",
+            "Pausa: ESC o botón ☰ Menú (arriba derecha).",
+            "Deshacer: botón ↺ Deshacer (retrocede 1 paso).",
+            "Nuevo pedido: presiona A para Aceptar, R para Rechazar.",
+            "Recoger/Entregar manual: P para recoger, E para entregar.",
+            "Inventario: usa A/D o los botones del panel para navegar.",
+            "El clima y el peso afectan tu velocidad.",
+            "Planifica rutas desde el panel derecho de pedidos activos.",
         ]
 
     def on_show(self):
@@ -552,14 +576,35 @@ class InstructionsView(arcade.View):
     def on_draw(self):
         self.clear()
         w, h = self.window.width, self.window.height
-        # fondo con gradiente y panel para consistencia visual (sin cabecera global)
         draw_vertical_gradient(w, h, THEME["bg_top"], THEME["bg_bottom"])
-        draw_center_panel(w, h)
-        y = h - 170
+        panel_w = w * 0.78
+        panel_h = h * 0.52
+        cx = w / 2
+        cy = h / 2
+        left = cx - panel_w / 2
+        right = cx + panel_w / 2
+        bottom = cy - panel_h / 2
+        top = cy + panel_h / 2
+        arcade.draw_lrbt_rectangle_filled(left, right, bottom, top, THEME["panel_fill"])
+        try:
+            arcade.draw_lrbt_rectangle_outline(left, right, bottom, top, THEME["panel_outline"], border_width=3)
+        except Exception:
+            arcade.draw_line(left, bottom, right, bottom, THEME["panel_outline"], 3)
+            arcade.draw_line(right, bottom, right, top, THEME["panel_outline"], 3)
+            arcade.draw_line(right, top, left, top, THEME["panel_outline"], 3)
+            arcade.draw_line(left, top, left, bottom, THEME["panel_outline"], 3)
+
+        self.header.x = w / 2
+        self.header.y = h - 100
         self.header.draw()
+
+        margin_x = left + 24
+        text_y = top - 70
+        line_gap = 26
+        font = _scale_font(16, h)
         for line in self.lines:
-            arcade.draw_text(line, 120, y - 40, THEME["text"], _scale_font(16, h))
-            y -= 30
+            arcade.draw_text(line, margin_x, text_y, THEME["text"], font)
+            text_y -= line_gap
         draw_footer_help(w, h)
         self.manager.draw()
 
@@ -582,12 +627,15 @@ class NewGameMenuView(arcade.View):
         for i in range(1, 4):
             slot = f"slot{i}.sav"
             txt = f"Slot {i}: {'Ocupado' if slot in self.saves else 'Vacío'}"
-            btn = arcade.gui.UIFlatButton(text=txt, width=380); v_box.add(btn)
+            btn = arcade.gui.UIFlatButton(text=txt, width=380);
+            v_box.add(btn)
+
             @btn.event("on_click")
             def on_click(event, slot=slot): self.confirm_overwrite(slot)
 
         new_slot_btn = arcade.gui.UIFlatButton(text="Crear Nuevo Slot", width=380)
         v_box.add(new_slot_btn)
+
         @new_slot_btn.event("on_click")
         def on_new_slot(event):
             new_index = len(self.saves) + 1
@@ -596,6 +644,7 @@ class NewGameMenuView(arcade.View):
 
         back_btn = arcade.gui.UIFlatButton(text="Volver", width=260)
         v_box.add(back_btn)
+
         @back_btn.event("on_click")
         def on_back(event): slide_to(self, GameMenuView())
 
@@ -613,10 +662,12 @@ class NewGameMenuView(arcade.View):
         )
         yes_btn = arcade.gui.UIFlatButton(text="Sí, sobreescribir", width=200)
         no_btn = arcade.gui.UIFlatButton(text="Cancelar", width=200)
-        confirm_box.add(yes_btn); confirm_box.add(no_btn)
+        confirm_box.add(yes_btn);
+        confirm_box.add(no_btn)
 
         @yes_btn.event("on_click")
         def on_yes(event): self.create_game(slot)
+
         @no_btn.event("on_click")
         def on_no(event): slide_to(self, NewGameMenuView())
 
@@ -635,18 +686,29 @@ class NewGameMenuView(arcade.View):
         except Exception as e:
             print(f"[UI] Error creando partida en {slot}: {e}")
 
-    def on_show_view(self): self.manager.enable()
-    def on_hide_view(self): self.manager.disable()
-    def on_show(self): arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+    def on_show_view(self):
+        self.manager.enable()
+
+    def on_hide_view(self):
+        self.manager.disable()
+
+    def on_show(self):
+        arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+
     def on_draw(self):
         self.clear()
         w, h = self.window.width, self.window.height
         draw_vertical_gradient(w, h, THEME["bg_top"], THEME["bg_bottom"])
-        header = arcade.Text("Nueva Partida", w/2, h - 90, THEME["text"], 36, anchor_x="center")
         draw_header_and_subtitle(w, h)
         draw_center_panel(w, h)
-        header.draw()
-        if hasattr(self, "confirm_text"): self.confirm_text.draw()
+        if hasattr(self, "confirm_text"):
+            try:
+                self.confirm_text.x = w / 2
+                self.confirm_text.y = h / 2 + 60
+                self.confirm_text.font_size = _scale_font(20, h)
+            except Exception:
+                pass
+            self.confirm_text.draw()
         draw_footer_help(w, h)
         self.manager.draw()
 
@@ -668,25 +730,30 @@ class LoadMenuView(arcade.View):
         saves = list_saves()
         if not saves:
             self.empty_text = arcade.Text(
-                "No hay partidas guardadas.", SCREEN_WIDTH/2, SCREEN_HEIGHT/2,
+                "No hay partidas guardadas.", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2,
                 arcade.color.LIGHT_GRAY, font_size=20, anchor_x="center"
             )
         else:
             saves = sorted(saves, key=lambda x: int(x.replace("slot", "").replace(".sav", "")))
             for slot in saves:
-                btn = arcade.gui.UIFlatButton(text=f"Cargar {slot}", width=380); v_box.add(btn)
+                btn = arcade.gui.UIFlatButton(text=f"Cargar {slot}", width=380);
+                v_box.add(btn)
+
                 @btn.event("on_click")
                 def on_click(event, slot=slot):
                     try:
                         data = load_game(slot)
                         if not data:
-                            print(f"[INFO] No se pudo cargar {slot}"); return
+                            print(f"[INFO] No se pudo cargar {slot}");
+                            return
 
                         # alias
                         if "map_data" not in data and "city_map" in data: data["map_data"] = data["city_map"]
                         if "city_map" not in data and "map_data" in data: data["city_map"] = data["map_data"]
-                        if "weather_data" not in data and "weather_state" in data: data["weather_data"] = data["weather_state"]
-                        if "weather_state" not in data and "weather_data" in data: data["weather_state"] = data["weather_data"]
+                        if "weather_data" not in data and "weather_state" in data: data["weather_data"] = data[
+                            "weather_state"]
+                        if "weather_state" not in data and "weather_data" in data: data["weather_state"] = data[
+                            "weather_data"]
                         if "jobs_data" not in data and "orders" in data: data["jobs_data"] = data["orders"]
                         if "orders" not in data and "jobs_data" in data: data["orders"] = data["jobs_data"]
 
@@ -695,11 +762,14 @@ class LoadMenuView(arcade.View):
                         state.map_data = data.get("map_data", {})
                         state.city_map = data.get("city_map", state.map_data)
                         jobs_list = data.get("jobs_data", []) or data.get("orders", []) or data.get("jobs", [])
-                        state.jobs_data = jobs_list; state.orders = jobs_list
+                        state.jobs_data = jobs_list;
+                        state.orders = jobs_list
                         weather = data.get("weather_data", {}) or data.get("weather_state", {})
-                        state.weather_data = weather; state.weather_state = weather
+                        state.weather_data = weather;
+                        state.weather_state = weather
                         if "player_x" in data and "player_y" in data:
-                            state.player_x = data["player_x"]; state.player_y = data["player_y"]
+                            state.player_x = data["player_x"];
+                            state.player_y = data["player_y"]
 
                         # reanudación
                         data["__resume_from_save__"] = True
@@ -710,22 +780,32 @@ class LoadMenuView(arcade.View):
                     except Exception as e:
                         print(f"[UI] Error cargando {slot}: {e}")
 
-        back_btn = arcade.gui.UIFlatButton(text="Volver", width=260); v_box.add(back_btn)
+        back_btn = arcade.gui.UIFlatButton(text="Volver", width=260);
+        v_box.add(back_btn)
+
         @back_btn.event("on_click")
-        def on_back(event): self.window.show_view(GameMenuView())
+        def on_back(event):
+            self.window.show_view(GameMenuView())
 
         anchor = arcade.gui.UIAnchorLayout()
-        anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y"); self.manager.add(anchor)
+        anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y");
+        self.manager.add(anchor)
 
-    def on_show_view(self): self.manager.enable()
-    def on_hide_view(self): self.manager.disable()
-    def on_show(self): arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+    def on_show_view(self):
+        self.manager.enable()
+
+    def on_hide_view(self):
+        self.manager.disable()
+
+    def on_show(self):
+        arcade.set_background_color(arcade.color.DARK_BLUE_GRAY)
+
     def on_draw(self):
         self.clear()
         w, h = self.window.width, self.window.height
         draw_vertical_gradient(w, h, THEME["bg_top"], THEME["bg_bottom"])
         # título y panel central (sin cabecera global para evitar solapes)
-        header = arcade.Text("Cargar Partida", w/2, h - 90, THEME["text"], 36, anchor_x="center")
+        header = arcade.Text("Cargar Partida", w / 2, h - 90, THEME["text"], 36, anchor_x="center")
         draw_center_panel(w, h)
         header.draw()
         if hasattr(self, "empty_text"): self.empty_text.draw()
@@ -746,6 +826,7 @@ class RecordsView(arcade.View):
     Muestra la tabla de records (highscores) usando ScoreSystem.
     Tiene un botón 'Volver' que regresa a GameMenuView.
     """
+
     def __init__(self):
         super().__init__()
         self.manager = arcade.gui.UIManager()
@@ -756,6 +837,7 @@ class RecordsView(arcade.View):
         v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=10)
         back_btn = arcade.gui.UIFlatButton(text="Volver", width=200)
         v_box.add(back_btn)
+
         @back_btn.event("on_click")
         def on_back(event):
             self.window.show_view(GameMenuView())
@@ -768,14 +850,14 @@ class RecordsView(arcade.View):
         # precomputar textos (si hay)
         self.header = arcade.Text(
             "Tabla de records 🏆",
-            SCREEN_WIDTH/2, SCREEN_HEIGHT - 80,
+            SCREEN_WIDTH / 2, SCREEN_HEIGHT - 80,
             arcade.color.WHITE, font_size=28, anchor_x="center"
         )
 
         # si no hay scores, mostrar mensaje
         if not self.scores:
             self.empty_text = arcade.Text(
-                "No hay records aún. Disfruta de unas partidas y vuelve luego!", SCREEN_WIDTH/2, SCREEN_HEIGHT/2,
+                "No hay records aún. Disfruta de unas partidas y vuelve luego!", SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2,
                 arcade.color.LIGHT_GRAY, font_size=18, anchor_x="center"
             )
         else:
@@ -819,7 +901,8 @@ class RecordsView(arcade.View):
             start_y = h - 150
             line_h = 24
             left_margin = 60
-            arcade.draw_text(self.table_lines[0], left_margin, start_y, arcade.color.LIGHT_GRAY, _scale_font(14, h), font_name="monospace")
+            arcade.draw_text(self.table_lines[0], left_margin, start_y, arcade.color.LIGHT_GRAY, _scale_font(14, h),
+                             font_name="monospace")
             for i, line in enumerate(self.table_lines[1:], start=1):
                 y = start_y - (i * line_h)
                 arcade.draw_text(line, left_margin, y, arcade.color.WHITE, _scale_font(14, h), font_name="monospace")
@@ -858,6 +941,7 @@ class SettingsView(arcade.View):
         # Botón guardar
         save_btn = arcade.gui.UIFlatButton(text="Guardar", width=200)
         v_box.add(save_btn)
+
         @save_btn.event("on_click")
         def on_save(event):
             try:
@@ -876,15 +960,21 @@ class SettingsView(arcade.View):
         # Botón cancelar
         cancel_btn = arcade.gui.UIFlatButton(text="Cancelar", width=200)
         v_box.add(cancel_btn)
+
         @cancel_btn.event("on_click")
-        def on_cancel(event): slide_to(self, PauseMenuView(self.game_view, self.state, self.slot))
+        def on_cancel(event):
+            slide_to(self, PauseMenuView(self.game_view, self.state, self.slot))
 
         anchor = arcade.gui.UIAnchorLayout()
         anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y")
         self.manager.add(anchor)
 
-    def on_show(self): arcade.set_background_color(arcade.color.DARK_BLUE_GRAY); self.manager.enable()
-    def on_hide_view(self): self.manager.disable()
+    def on_show(self):
+        arcade.set_background_color(arcade.color.DARK_BLUE_GRAY); self.manager.enable()
+
+    def on_hide_view(self):
+        self.manager.disable()
+
     def on_draw(self):
         self.clear()
         w, h = self.window.width, self.window.height
@@ -892,9 +982,15 @@ class SettingsView(arcade.View):
         draw_header_and_subtitle(w, h)
         draw_center_panel(w, h)
         self.manager.draw()
-    def on_mouse_press(self,x,y,b,m): self.manager.on_mouse_press(x,y,b,m)
-    def on_mouse_release(self,x,y,b,m): self.manager.on_mouse_release(x,y,b,m)
-    def on_mouse_motion(self,x,y,dx,dy): self.manager.on_mouse_motion(x,y,dx,dy)
+
+    def on_mouse_press(self, x, y, b, m):
+        self.manager.on_mouse_press(x, y, b, m)
+
+    def on_mouse_release(self, x, y, b, m):
+        self.manager.on_mouse_release(x, y, b, m)
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        self.manager.on_mouse_motion(x, y, dx, dy)
 
 
 # ========================
@@ -903,19 +999,24 @@ class SettingsView(arcade.View):
 class PauseMenuView(arcade.View):
     def __init__(self, game_view, state, slot):
         super().__init__()
-        self.game_view = game_view; self.state = state; self.slot = slot
+        self.game_view = game_view;
+        self.state = state;
+        self.slot = slot
         self.manager = arcade.gui.UIManager()
         v_box = arcade.gui.UIBoxLayout(vertical=True, space_between=20)
 
-        resume_btn = arcade.gui.UIFlatButton(text="Reanudar", width=200); v_box.add(resume_btn)
+        resume_btn = arcade.gui.UIFlatButton(text="Reanudar", width=200);
+        v_box.add(resume_btn)
+
         @resume_btn.event("on_click")
-        def on_resume(event): self.window.show_view(self.game_view)
+        def on_resume(event):
+            self.window.show_view(self.game_view)
 
-        settings_btn = arcade.gui.UIFlatButton(text="Configuración", width=200); v_box.add(settings_btn)
-        @settings_btn.event("on_click")
-        def on_settings(event): slide_to(self, SettingsView(self.game_view, self.state, self.slot))
+        # Botón de configuración eliminado
 
-        save_btn = arcade.gui.UIFlatButton(text="Guardar", width=200); v_box.add(save_btn)
+        save_btn = arcade.gui.UIFlatButton(text="Guardar", width=200);
+        v_box.add(save_btn)
+
         @save_btn.event("on_click")
         def on_save(event):
             try:
@@ -925,19 +1026,35 @@ class PauseMenuView(arcade.View):
             except Exception as e:
                 print(f"[UI] Error al guardar: {e}")
 
-        exit_btn = arcade.gui.UIFlatButton(text="Salir", width=200); v_box.add(exit_btn)
+        exit_btn = arcade.gui.UIFlatButton(text="Salir", width=200);
+        v_box.add(exit_btn)
+
         @exit_btn.event("on_click")
-        def on_exit(event): self.window.show_view(MainMenuView())
+        def on_exit(event):
+            self.window.show_view(MainMenuView())
 
         anchor = arcade.gui.UIAnchorLayout()
-        anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y"); self.manager.add(anchor)
+        anchor.add(child=v_box, anchor_x="center_x", anchor_y="center_y");
+        self.manager.add(anchor)
 
-    def on_show(self): arcade.set_background_color(arcade.color.DARK_BLUE_GRAY); self.manager.enable()
-    def on_hide_view(self): self.manager.disable()
-    def on_draw(self): self.clear(); self.manager.draw()
-    def on_mouse_press(self,x,y,b,m): self.manager.on_mouse_press(x,y,b,m)
-    def on_mouse_release(self,x,y,b,m): self.manager.on_mouse_release(x,y,b,m)
-    def on_mouse_motion(self,x,y,dx,dy): self.manager.on_mouse_motion(x,y,dx,dy)
+    def on_show(self):
+        arcade.set_background_color(arcade.color.DARK_BLUE_GRAY); self.manager.enable()
+
+    def on_hide_view(self):
+        self.manager.disable()
+
+    def on_draw(self):
+        self.clear(); self.manager.draw()
+
+    def on_mouse_press(self, x, y, b, m):
+        self.manager.on_mouse_press(x, y, b, m)
+
+    def on_mouse_release(self, x, y, b, m):
+        self.manager.on_mouse_release(x, y, b, m)
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        self.manager.on_mouse_motion(x, y, dx, dy)
+
     def on_key_press(self, key, modifiers):
         if key == arcade.key.ESCAPE: self.window.show_view(self.game_view)
 
@@ -948,35 +1065,79 @@ class PauseMenuView(arcade.View):
 class MapPlayerViewWithPause(MapPlayerView):
     def __init__(self, state, slot):
         super().__init__(state)
-        self.state = state; self.slot = slot
+        self.state = state;
+        self.slot = slot
 
         # Restaurar posición si existe
         try:
             if hasattr(self, "player"):
-                px = getattr(state, "player_x", None); py = getattr(state, "player_y", None)
+                px = getattr(state, "player_x", None);
+                py = getattr(state, "player_y", None)
                 if px is not None and py is not None:
-                    if hasattr(self.player, "set_cell"): self.player.set_cell(int(px), int(py))
-                    else: self.player.cell_x = int(px); self.player.cell_y = int(py)
+                    if hasattr(self.player, "set_cell"):
+                        self.player.set_cell(int(px), int(py))
+                    else:
+                        self.player.cell_x = int(px); self.player.cell_y = int(py)
                     print(f"[LOAD] Posición del jugador restaurada en celda ({px}, {py})")
         except Exception as e:
             print(f"[WARN] No se pudo restaurar la posición: {e}")
 
         # UI botón de pausa
-        self.manager = arcade.gui.UIManager(); self.manager.enable()
+        self.manager = arcade.gui.UIManager();
+        self.manager.enable()
         anchor = arcade.gui.UIAnchorLayout()
         pause_btn = arcade.gui.UIFlatButton(text="☰ Menú", width=100)
         anchor.add(child=pause_btn, anchor_x="right", anchor_y="top", align_x=-10, align_y=-10)
+
         @pause_btn.event("on_click")
-        def on_pause(event): self.window.show_view(PauseMenuView(self, self.state, self.slot))
+        def on_pause(event):
+            self.window.show_view(PauseMenuView(self, self.state, self.slot))
+
+        undo_btn = arcade.gui.UIFlatButton(text="↺ Deshacer", width=100)
+        anchor.add(child=undo_btn, anchor_x="right", anchor_y="top", align_x=-10, align_y=-55)
+
+        @undo_btn.event("on_click")
+        def on_undo(event):
+            try:
+                if hasattr(self, "_undo_one_step"):
+                    self._undo_one_step()
+                else:
+                    # fallback: una acción de deshacer
+                    undone = False
+                    if self.game_manager and hasattr(self.game_manager, 'undo_last_action'):
+                        try:
+                            undone = bool(self.game_manager.undo_last_action())
+                        except Exception:
+                            undone = False
+                    if not undone and hasattr(self, 'undo') and hasattr(self.undo, 'restore'):
+                        if self.undo.restore():
+                            undone = True
+                    if undone:
+                        self.show_notification("Última acción deshecha")
+                    else:
+                        self.show_notification("No hay acciones para deshacer")
+            except Exception:
+                pass
+
         self.manager.add(anchor)
 
-    def on_draw(self): super().on_draw(); self.manager.draw()
+    def on_draw(self):
+        super().on_draw(); self.manager.draw()
+
     def on_key_press(self, key, modifiers):
-        if key == arcade.key.ESCAPE: self.window.show_view(PauseMenuView(self, self.state, self.slot))
-        else: super().on_key_press(key, modifiers)
-    def on_mouse_press(self,x,y,b,m): self.manager.on_mouse_press(x,y,b,m)
-    def on_mouse_release(self,x,y,b,m): self.manager.on_mouse_release(x,y,b,m)
-    def on_mouse_motion(self,x,y,dx,dy): self.manager.on_mouse_motion(x,y,dx,dy)
+        if key == arcade.key.ESCAPE:
+            self.window.show_view(PauseMenuView(self, self.state, self.slot))
+        else:
+            super().on_key_press(key, modifiers)
+
+    def on_mouse_press(self, x, y, b, m):
+        self.manager.on_mouse_press(x, y, b, m)
+
+    def on_mouse_release(self, x, y, b, m):
+        self.manager.on_mouse_release(x, y, b, m)
+
+    def on_mouse_motion(self, x, y, dx, dy):
+        self.manager.on_mouse_motion(x, y, dx, dy)
 
 
 def main():

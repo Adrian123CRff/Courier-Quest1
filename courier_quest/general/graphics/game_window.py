@@ -45,9 +45,6 @@ MAP_WIDTH = 730
 TILE_SIZE = 24
 
 
-
-
-
 class MapPlayerView(View):
     def __init__(self, state) -> None:
         super().__init__()
@@ -176,26 +173,25 @@ class MapPlayerView(View):
         # self.right_panel = RightPanelUI(self)  # Removed: replaced by HUD card
         self.active_jobs_ui = ActiveJobsUI(self)
         self.endgame = EndgameManager(self)
-        
+
         # New component managers for refactored MapPlayerView
         self.game_state_manager = GameStateManager(self)
         self.input_handler = InputHandler(self)
         self.ui_manager = UIManager(self)
         self.update_manager = UpdateManager(self)
 
-        
         self.save_manager = SaveManager(self)
         self.undo = UndoManager(self)
-        
+
         # Inventario con navegación
         self.inventory_view_index = 0
         self.inventory_left_button_rect = None
         self.inventory_right_button_rect = None
-        
-        # Botón de deshacer
+
+        # Botón de deshacer (manual dibujado deshabilitado; usamos botón UI)
         self.undo_button_rect = None
-        self.undo_button_visible = True
-        
+        self.undo_button_visible = False
+
         # Overlay de fin de juego
         self._show_lose_overlay = False
         self._lose_reason = ""
@@ -352,26 +348,32 @@ class MapPlayerView(View):
 
                 try:
                     # First try to load from 'player' dict (new format)
-                    player_data = self.state.get("player") if isinstance(self.state, dict) else getattr(self.state, "player", None)
+                    player_data = self.state.get("player") if isinstance(self.state, dict) else getattr(self.state,
+                                                                                                        "player", None)
                     if player_data and isinstance(player_data, dict):
                         px = player_data.get("cell_x")
                         py = player_data.get("cell_y")
                         if px is not None and py is not None:
                             self.player.cell_x = int(px)
                             self.player.cell_y = int(py)
-                            self.player.pixel_x, self.player.pixel_y = self.player.cell_to_pixel(self.player.cell_x, self.player.cell_y)
+                            self.player.pixel_x, self.player.pixel_y = self.player.cell_to_pixel(self.player.cell_x,
+                                                                                                 self.player.cell_y)
                             self.player.target_pixel_x, self.player.target_pixel_y = self.player.pixel_x, self.player.pixel_y
                             self.player.moving = player_data.get("moving", False)
                             self.player.target_surface_weight = player_data.get("target_surface_weight", 1.0)
-                            self.player.base_cells_per_sec = player_data.get("base_cells_per_sec", self.player.base_cells_per_sec)
+                            self.player.base_cells_per_sec = player_data.get("base_cells_per_sec",
+                                                                             self.player.base_cells_per_sec)
                     else:
                         # Fallback to old format
-                        px = self.state.get("player_x") if isinstance(self.state, dict) else getattr(self.state, "player_x", None)
-                        py = self.state.get("player_y") if isinstance(self.state, dict) else getattr(self.state, "player_y", None)
+                        px = self.state.get("player_x") if isinstance(self.state, dict) else getattr(self.state,
+                                                                                                     "player_x", None)
+                        py = self.state.get("player_y") if isinstance(self.state, dict) else getattr(self.state,
+                                                                                                     "player_y", None)
                         if px is not None and py is not None:
                             self.player.cell_x = int(px)
                             self.player.cell_y = int(py)
-                            self.player.pixel_x, self.player.pixel_y = self.player.cell_to_pixel(self.player.cell_x, self.player.cell_y)
+                            self.player.pixel_x, self.player.pixel_y = self.player.cell_to_pixel(self.player.cell_x,
+                                                                                                 self.player.cell_y)
                             self.player.target_pixel_x, self.player.target_pixel_y = self.player.pixel_x, self.player.pixel_y
                 except Exception as e:
                     print(f"[RESUME] No se pudo fijar posición: {e}")
@@ -521,7 +523,9 @@ class MapPlayerView(View):
                             self._counted_deliveries.add(jid)
 
                         # si estaba recogido, añadir al inventario
-                        inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                        inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state,
+                                                                                                       "inventory",
+                                                                                                       None)
                         if job.picked_up and inv:
                             try:
                                 if hasattr(inv, "push"):
@@ -539,12 +543,14 @@ class MapPlayerView(View):
 
         # 4) filtrar pendientes por ids ya aceptados
         accepted_ids = {(r.get("id") or r.get("job_id")) for r in self.accepted_raw_jobs}
-        self.incoming_raw_jobs = [r for r in self.incoming_raw_jobs if (r.get("id") or r.get("job_id")) not in accepted_ids]
+        self.incoming_raw_jobs = [r for r in self.incoming_raw_jobs if
+                                  (r.get("id") or r.get("job_id")) not in accepted_ids]
         print(f"[JOBS] Cargados {len(self.incoming_raw_jobs)} pendientes, {len(self.accepted_raw_jobs)} aceptados")
 
         # 5) Limpiar inventario: remover trabajos completados y recalcular peso
         try:
-            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                           None)
             if inv and hasattr(inv, 'deque') and inv.deque:
                 # Remover trabajos completados
                 inv.deque = [job for job in inv.deque if not getattr(job, 'completed', False)]
@@ -655,9 +661,11 @@ class MapPlayerView(View):
         raw = self.job_notification_data
         jid = self._raw_job_id(raw)
 
-        inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+        inventory = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                             None)
         new_weight = float(raw.get("weight", 1.0))
-        if inventory and (getattr(inventory, "current_weight", 0.0) + new_weight > getattr(inventory, "max_weight", 10.0)):
+        if inventory and (
+                getattr(inventory, "current_weight", 0.0) + new_weight > getattr(inventory, "max_weight", 10.0)):
             self.show_notification("❌ Capacidad insuficiente")
             self.rejected_raw_jobs.append(raw)
             self.job_notification_active = False
@@ -788,8 +796,8 @@ class MapPlayerView(View):
         top = h - 10
         bottom = top - card_h
         right = left + card_w
-        _draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
-        _draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
+
+        # Fondo del HUD removido
 
         # Función para dibujar barras de progreso más pequeñas
         def draw_progress_bar(x, y, width, height, value01, fill_color, bg_color=(40, 45, 60)):
@@ -803,7 +811,8 @@ class MapPlayerView(View):
         try:
             gm = self.game_manager
             rem = gm.get_time_remaining() if gm else 0
-            m = int(rem // 60); s = int(rem % 60)
+            m = int(rem // 60);
+            s = int(rem % 60)
             Text("⏰ Tiempo", left + 12, top - 20, (200, 210, 220), 10).draw()
             Text(f"{m:02d}:{s:02d}", left + 12, top - 32, (240, 246, 255), 14, bold=True).draw()
         except Exception:
@@ -821,13 +830,14 @@ class MapPlayerView(View):
                     goal = int(self.state["income_goal"])
                 else:
                     # Fallback al map_data
-                    _m = self.state.get("map_data", {}) if isinstance(self.state, dict) else getattr(self.state, "map_data", {})
+                    _m = self.state.get("map_data", {}) if isinstance(self.state, dict) else getattr(self.state,
+                                                                                                     "map_data", {})
                     goal = int((_m or {}).get("goal", 1500))
             except Exception:
                 pass
             money = self._get_state_money()
             Text("$ Ingresos / Meta", left + 12, top - 50, (120, 220, 160), 10).draw()
-            Text(f"${int(money)} / ${goal}", left + 12, top - 62, (240, 246, 255), 14, bold=True).draw()
+            Text(f"${int(money)} / ${goal}", left + 12, top - 62, (240, 246, 255), 12, bold=True).draw()
         except Exception:
             pass
 
@@ -835,7 +845,7 @@ class MapPlayerView(View):
         try:
             Text("🔋 Resistencia", left + 12, top - 80, (200, 210, 220), 10).draw()
             stamina = getattr(self.player_stats, "stamina", 100)
-            draw_progress_bar(left + 12, top - 90, card_w - 24, 8, stamina / 100.0, (80, 200, 255))
+            draw_progress_bar(left + 12, top - 88, card_w - 24, 8, stamina / 100.0, (80, 200, 255))
         except Exception:
             pass
 
@@ -843,13 +853,14 @@ class MapPlayerView(View):
         try:
             Text("⭐ Reputación", left + 12, top - 105, (200, 210, 220), 10).draw()
             rep = getattr(self.player_stats, "reputation", 70)
-            draw_progress_bar(left + 12, top - 115, card_w - 24, 8, rep / 100.0, (255, 220, 120))
+            draw_progress_bar(left + 12, top - 110, card_w - 24, 8, rep / 100.0, (255, 220, 120))
         except Exception:
             pass
 
         # Peso con barra - más compacto
         try:
-            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                           None)
             weight = float(getattr(inv, "current_weight", 0.0) or 0.0)
             max_weight = 10.0
             Text("📦 Peso", left + 12, top - 130, (200, 210, 220), 10).draw()
@@ -864,7 +875,7 @@ class MapPlayerView(View):
             # Mapear nombres de clima a español
             clima_map = {
                 "clear": "Despejado",
-                "clouds": "Nublado", 
+                "clouds": "Nublado",
                 "rain": "Lluvia",
                 "storm": "Tormenta",
                 "fog": "Niebla",
@@ -884,7 +895,7 @@ class MapPlayerView(View):
         w = getattr(self, 'SCREEN_WIDTH', self.width)
         h = getattr(self, 'SCREEN_HEIGHT', self.height)
         map_width = getattr(self, 'MAP_WIDTH', 730)
-        
+
         # Panel de inventario debajo del HUD - más compacto
         panel_w = int(min(350, (w - map_width) * 0.9))
         panel_h = 250  # Reducido
@@ -892,21 +903,22 @@ class MapPlayerView(View):
         top = h - 200  # Más cerca del HUD
         bottom = top - panel_h
         right = left + panel_w
-        
+
         # Fondo del panel
         _draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
         _draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
-        
+
         # Título más pequeño
         Text("📦 INVENTARIO", left + 12, top - 20, (255, 220, 120), 12, bold=True).draw()
-        
+
         # Obtener inventario
         try:
-            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                           None)
             if inv is None:
                 Text("No hay inventario disponible", left + 15, top - 50, (200, 200, 200), 12).draw()
                 return
-                
+
             # Obtener lista de items
             items = []
             if hasattr(inv, 'deque') and inv.deque:
@@ -915,33 +927,35 @@ class MapPlayerView(View):
                 items = list(inv.items)
             elif hasattr(inv, '__iter__'):
                 items = list(inv)
-                
+
             if not items:
                 Text("Inventario vacío", left + 12, top - 45, (200, 200, 200), 10).draw()
                 return
-                
+
             # Navegación
             total_items = len(items)
             if total_items > 0:
                 current_item = items[self.inventory_view_index % total_items]
-                
+
                 # Información del item actual - más compacta
                 item_id = getattr(current_item, 'id', 'Unknown')
                 item_payout = getattr(current_item, 'payout', 0)
                 item_weight = getattr(current_item, 'weight', 0)
                 item_pickup = getattr(current_item, 'pickup', [0, 0])
                 item_dropoff = getattr(current_item, 'dropoff', [0, 0])
-                
+
                 # Mostrar información del item - más compacta
                 Text(f"ID: {item_id}", left + 12, top - 40, (240, 246, 255), 10).draw()
                 Text(f"Pago: ${item_payout}", left + 12, top - 55, (120, 220, 160), 10).draw()
                 Text(f"Peso: {item_weight}kg", left + 12, top - 70, (255, 180, 100), 10).draw()
                 Text(f"Recogida: ({item_pickup[0]}, {item_pickup[1]})", left + 12, top - 85, (200, 200, 200), 9).draw()
-                Text(f"Entrega: ({item_dropoff[0]}, {item_dropoff[1]})", left + 12, top - 100, (200, 200, 200), 9).draw()
-                
+                Text(f"Entrega: ({item_dropoff[0]}, {item_dropoff[1]})", left + 12, top - 100, (200, 200, 200),
+                     9).draw()
+
                 # Contador de items - más compacto
-                Text(f"Item {self.inventory_view_index + 1} de {total_items}", left + 12, top - 120, (180, 196, 220), 10).draw()
-                
+                Text(f"Item {self.inventory_view_index + 1} de {total_items}", left + 12, top - 120, (180, 196, 220),
+                     10).draw()
+
                 # Botones de navegación - más pequeños
                 if total_items > 1:
                     # Botón izquierda
@@ -951,30 +965,30 @@ class MapPlayerView(View):
                     btn_right = left + 12 + btn_w
                     btn_bottom = top - 160
                     btn_top = btn_bottom + btn_h
-                    
+
                     # Guardar coordenadas para detección de clics
                     self.inventory_left_button_rect = (btn_left, btn_bottom, btn_right, btn_top)
-                    
+
                     _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (60, 70, 90))
                     _draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (100, 120, 140), 1)
-                    Text("◀", btn_left + btn_w//2, btn_bottom + btn_h//2, (240, 246, 255), 12, 
+                    Text("◀", btn_left + btn_w // 2, btn_bottom + btn_h // 2, (240, 246, 255), 12,
                          anchor_x="center", anchor_y="center").draw()
-                    
+
                     # Botón derecha
                     btn_left = left + 70
                     btn_right = btn_left + btn_w
-                    
+
                     # Guardar coordenadas para detección de clics
                     self.inventory_right_button_rect = (btn_left, btn_bottom, btn_right, btn_top)
-                    
+
                     _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (60, 70, 90))
                     _draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (100, 120, 140), 1)
-                    Text("▶", btn_left + btn_w//2, btn_bottom + btn_h//2, (240, 246, 255), 12, 
+                    Text("▶", btn_left + btn_w // 2, btn_bottom + btn_h // 2, (240, 246, 255), 12,
                          anchor_x="center", anchor_y="center").draw()
-                    
+
                     # Instrucciones - más pequeñas
                     Text("Usa A/D para navegar", left + 12, top - 200, (180, 196, 220), 9).draw()
-                    
+
         except Exception as e:
             Text(f"Error cargando inventario: {str(e)[:30]}", left + 12, top - 50, (255, 120, 120), 10).draw()
 
@@ -982,40 +996,40 @@ class MapPlayerView(View):
         """Dibuja el botón de deshacer en la mitad derecha de la pantalla"""
         if not self.undo_button_visible:
             return
-            
+
         w = getattr(self, 'SCREEN_WIDTH', self.width)
         h = getattr(self, 'SCREEN_HEIGHT', self.height)
-        
-        # Posición del botón en la mitad derecha de la pantalla
+
+        # Posición del botón justo debajo del botón de menú (arriba derecha)
         btn_w = 100
         btn_h = 35
         btn_left = w - btn_w - 10  # Mismo margen que el botón de menú
-        btn_top = h // 2 + btn_h // 2  # Mitad de la pantalla
+        btn_top = h - 10 - btn_h - 10  # Debajo del botón de menú con 10px de separación
         btn_right = btn_left + btn_w
         btn_bottom = btn_top - btn_h
-        
+
         # Guardar rectángulo para detección de clics
         self.undo_button_rect = (btn_left, btn_bottom, btn_right, btn_top)
-        
+
         # Fondo del botón (blanco con bordes redondeados simulados)
         _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom, btn_top, (255, 255, 255))
         _draw_rect_lrbt_outline(btn_left, btn_right, btn_bottom, btn_top, (200, 200, 200), 1)
-        
+
         # Sombra sutil en la parte inferior
         _draw_rect_lrbt_filled(btn_left, btn_right, btn_bottom - 2, btn_bottom, (180, 180, 180))
-        
+
         # Icono de deshacer (flecha circular)
         icon_x = btn_left + 12
         icon_y = btn_bottom + btn_h // 2
-        
+
         # Dibujar flecha circular simple
         arcade.draw_circle_outline(icon_x, icon_y, 6, (0, 0, 0), 2)
         # Flecha apuntando hacia la izquierda
         arcade.draw_line(icon_x - 3, icon_y, icon_x + 1, icon_y - 2, (0, 0, 0), 2)
         arcade.draw_line(icon_x - 3, icon_y, icon_x + 1, icon_y + 2, (0, 0, 0), 2)
-        
+
         # Texto "Deshacer" más pequeño
-        Text("Deshacer", btn_left + 25, btn_bottom + btn_h // 2, (0, 0, 0), 10, bold=True, 
+        Text("Deshacer", btn_left + 25, btn_bottom + btn_h // 2, (0, 0, 0), 10, bold=True,
              anchor_x="left", anchor_y="center").draw()
 
     def _draw_lose_overlay(self):
@@ -1029,9 +1043,12 @@ class MapPlayerView(View):
         # tarjeta central
         card_w = int(min(520, w * 0.7))
         card_h = 240
-        cx = w // 2; cy = h // 2
-        left = cx - card_w//2; right = cx + card_w//2
-        bottom = cy - card_h//2; top = cy + card_h//2
+        cx = w // 2;
+        cy = h // 2
+        left = cx - card_w // 2;
+        right = cx + card_w // 2
+        bottom = cy - card_h // 2;
+        top = cy + card_h // 2
         _draw_rect_lrbt_filled(left, right, bottom, top, (25, 28, 45))
         _draw_rect_lrbt_outline(left, right, bottom, top, (120, 100, 220), 3)
         Text("❌ Derrota", left + 24, top - 40, (255, 120, 120), 24, bold=True).draw()
@@ -1045,7 +1062,8 @@ class MapPlayerView(View):
         panel_y = SCREEN_HEIGHT - 100 + 100
         panel_width = 300
         panel_height = 90
-        _draw_rect_lrbt_filled(panel_x, panel_x + panel_width, panel_y - panel_height, panel_y, arcade.color.DARK_SLATE_GRAY)
+        _draw_rect_lrbt_filled(panel_x, panel_x + panel_width, panel_y - panel_height, panel_y,
+                               arcade.color.DARK_SLATE_GRAY)
         _draw_rect_lrbt_outline(panel_x, panel_x + panel_width, panel_y - panel_height, panel_y, arcade.color.BLUE, 2)
         Text("⏰ TIEMPO DE SIMULACIÓN", panel_x + 10, panel_y - 20, arcade.color.GOLD, 12, bold=True).draw()
         try:
@@ -1062,7 +1080,8 @@ class MapPlayerView(View):
             Text(f"Fecha: {date_str}", panel_x + 15, panel_y - 55, arcade.color.WHITE, 11).draw()
             Text(f"Transcurrido: {minutes:02d}:{seconds:02d}", panel_x + 15, panel_y - 70, arcade.color.CYAN, 11).draw()
             time_color = arcade.color.GREEN if time_remaining >= 600 else arcade.color.ORANGE if time_remaining >= 300 else arcade.color.RED
-            Text(f"Restante: {rem_minutes:02d}:{rem_seconds:02d}", panel_x + 15, panel_y - 85, time_color, 11, bold=True).draw()
+            Text(f"Restante: {rem_minutes:02d}:{rem_seconds:02d}", panel_x + 15, panel_y - 85, time_color, 11,
+                 bold=True).draw()
         except Exception:
             pass
 
@@ -1091,14 +1110,7 @@ class MapPlayerView(View):
                 pass
             return
 
-        # snapshot for undo on any significant key
-        try:
-            if key in (arcade.key.UP, arcade.key.DOWN, arcade.key.LEFT, arcade.key.RIGHT, 
-                      arcade.key.W, arcade.key.A, arcade.key.S, arcade.key.D, 
-                      arcade.key.P, arcade.key.E):
-                self.undo.snapshot()
-        except Exception:
-            pass
+        # Eliminado: snapshots de UndoManager para evitar conflictos con GameManager.undo
 
         # P: pickup manual (misma o adyacente)
         if key == arcade.key.P:
@@ -1192,7 +1204,8 @@ class MapPlayerView(View):
                 return
             # Navegación del inventario - ir al item anterior
             try:
-                inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                               None)
                 if inv:
                     items = []
                     if hasattr(inv, 'deque') and inv.deque:
@@ -1201,7 +1214,7 @@ class MapPlayerView(View):
                         items = list(inv.items)
                     elif hasattr(inv, '__iter__'):
                         items = list(inv)
-                    
+
                     if len(items) > 1:
                         self.inventory_view_index = (self.inventory_view_index - 1) % len(items)
                         self.show_notification(f"Item {self.inventory_view_index + 1} de {len(items)}")
@@ -1216,7 +1229,8 @@ class MapPlayerView(View):
                 return
             # Navegación del inventario - ir al item siguiente
             try:
-                inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+                inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                               None)
                 if inv:
                     items = []
                     if hasattr(inv, 'deque') and inv.deque:
@@ -1225,7 +1239,7 @@ class MapPlayerView(View):
                         items = list(inv.items)
                     elif hasattr(inv, '__iter__'):
                         items = list(inv)
-                    
+
                     if len(items) > 1:
                         self.inventory_view_index = (self.inventory_view_index + 1) % len(items)
                         self.show_notification(f"Item {self.inventory_view_index + 1} de {len(items)}")
@@ -1233,7 +1247,7 @@ class MapPlayerView(View):
             except Exception:
                 pass
             if self.inventory_ui.handle_key_D():
-                        return
+                return
 
         if key == arcade.key.R:
             if self.job_notification_active and self.job_notification_data:
@@ -1291,18 +1305,29 @@ class MapPlayerView(View):
                 self.show_notification("❌ Error al cargar")
             return
 
-        # Manejo de movimiento con WASD y flechas
+        # C: cancelar pedido seleccionado del inventario (penaliza reputación)
+        if key == arcade.key.C:
+            try:
+                if hasattr(self, "input_handler") and hasattr(self.input_handler, "_cancel_current_job"):
+                    self.input_handler._cancel_current_job()
+                else:
+                    self.show_notification("No se pudo cancelar: manejador de entrada no disponible")
+            except Exception as e:
+                print(f"[INPUT] Error cancelando pedido (C): {e}")
+            return
+
+        # Manejo de movimiento solo con flechas
         dx, dy = 0, 0
-        if key == arcade.key.UP or key == arcade.key.W:
+        if key == arcade.key.UP:
             dy = -1
             self.facing = "up"
-        elif key == arcade.key.DOWN or key == arcade.key.S:
+        elif key == arcade.key.DOWN:
             dy = 1
             self.facing = "down"
-        elif key == arcade.key.LEFT or key == arcade.key.A:
+        elif key == arcade.key.LEFT:
             dx = -1
             self.facing = "left"
-        elif key == arcade.key.RIGHT or key == arcade.key.D:
+        elif key == arcade.key.RIGHT:
             dx = 1
             self.facing = "right"
         else:
@@ -1323,22 +1348,33 @@ class MapPlayerView(View):
 
         moved = self.player.move_by(dx, dy, self.game_map)
         if not moved:
-            if self.player.bound_stats and hasattr(self.player.bound_stats, "can_move") and not self.player.bound_stats.can_move():
+            if self.player.bound_stats and hasattr(self.player.bound_stats,
+                                                   "can_move") and not self.player.bound_stats.can_move():
                 self.show_notification("[INFO] No puedes moverte: resistencia agotada.")
             else:
                 self.show_notification("Movimiento bloqueado")
 
     def _handle_undo(self):
-        """Maneja la lógica de deshacer (usado tanto por teclado como por botón)"""
+        try:
+            if hasattr(self, "notifications") and hasattr(self.notifications, "show_undo_prompt"):
+                self.notifications.show_undo_prompt(self._confirm_undo_n_steps)
+                return
+        except Exception:
+            pass
+        self.show_notification("Ingresa número de pasos a deshacer (1-9):")
+        if hasattr(self, "input_handler"):
+            try:
+                self.input_handler.waiting_for_undo_steps = True
+            except Exception:
+                pass
+
+    def _undo_one_step(self):
         undone = False
         if self.game_manager and hasattr(self.game_manager, 'undo_last_action'):
             try:
                 undone = bool(self.game_manager.undo_last_action())
             except Exception:
                 undone = False
-        if not undone:
-            if self.undo.restore():
-                undone = True
         if undone:
             self.show_notification("Última acción deshecha")
         else:
@@ -1347,7 +1383,8 @@ class MapPlayerView(View):
     def _navigate_inventory_left(self):
         """Navega hacia la izquierda en el inventario"""
         try:
-            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                           None)
             if inv:
                 items = []
                 if hasattr(inv, 'deque') and inv.deque:
@@ -1356,7 +1393,7 @@ class MapPlayerView(View):
                     items = list(inv.items)
                 elif hasattr(inv, '__iter__'):
                     items = list(inv)
-                
+
                 if len(items) > 1:
                     self.inventory_view_index = (self.inventory_view_index - 1) % len(items)
                     self.show_notification(f"Item {self.inventory_view_index + 1} de {len(items)}")
@@ -1366,7 +1403,8 @@ class MapPlayerView(View):
     def _navigate_inventory_right(self):
         """Navega hacia la derecha en el inventario"""
         try:
-            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory", None)
+            inv = self.state.get("inventory") if isinstance(self.state, dict) else getattr(self.state, "inventory",
+                                                                                           None)
             if inv:
                 items = []
                 if hasattr(inv, 'deque') and inv.deque:
@@ -1375,7 +1413,7 @@ class MapPlayerView(View):
                     items = list(inv.items)
                 elif hasattr(inv, '__iter__'):
                     items = list(inv)
-                
+
                 if len(items) > 1:
                     self.inventory_view_index = (self.inventory_view_index + 1) % len(items)
                     self.show_notification(f"Item {self.inventory_view_index + 1} de {len(items)}")
@@ -1391,14 +1429,14 @@ class MapPlayerView(View):
                 if btn_left <= x <= btn_right and btn_bottom <= y <= btn_top:
                     self._handle_undo()
                     return
-            
+
             # Botones del inventario
             if self.inventory_left_button_rect:
                 btn_left, btn_bottom, btn_right, btn_top = self.inventory_left_button_rect
                 if btn_left <= x <= btn_right and btn_bottom <= y <= btn_top:
                     self._navigate_inventory_left()
                     return
-            
+
             if self.inventory_right_button_rect:
                 btn_left, btn_bottom, btn_right, btn_top = self.inventory_right_button_rect
                 if btn_left <= x <= btn_right and btn_bottom <= y <= btn_top:
@@ -1436,10 +1474,7 @@ class MapPlayerView(View):
     def show_job_offer(self, job_data, on_accept, on_reject):
         try:
             job_id = job_data.get("id", "Unknown")
-            payout = self._get_job_payout(job_data)
-            weight = job_data.get("weight", 0)
-            message = f"📦 NUEVO PEDIDO\n{job_id}\nPago: ${payout}\nPeso: {weight}kg\n(A) Aceptar  (R) Rechazar"
-            self.show_notification(message)
+            self.show_notification("📦 Nuevo pedido")
             self._pending_offer = (on_accept, on_reject)
             self._offer_job_id = job_id
         except Exception as e:
@@ -1649,3 +1684,31 @@ class MapPlayerView(View):
 
         except Exception as e:
             print(f"❌ Error en diagnóstico detallado: {e}")
+
+    def _confirm_undo_n_steps(self, n: int):
+        steps_done = 0
+        success = False
+        try:
+            if self.game_manager and hasattr(self.game_manager, "undo_system") and self.game_manager.undo_system:
+                try:
+                    avail = int(self.game_manager.undo_system.get_history_size())
+                except Exception:
+                    avail = None
+                to_undo = n
+                if isinstance(avail, int):
+                    to_undo = max(0, min(n, avail))
+                success = bool(self.game_manager.undo_n_steps(n))
+                steps_done = to_undo if success else 0
+            elif hasattr(self, "undo") and hasattr(self.undo, "restore"):
+                for i in range(max(0, n)):
+                    if self.undo.restore():
+                        steps_done += 1
+                        success = True
+                    else:
+                        break
+        except Exception:
+            success = False
+        if success and steps_done > 0:
+            self.show_notification(f"{steps_done} acciones deshechas")
+        else:
+            self.show_notification("No se pudieron deshacer las acciones")

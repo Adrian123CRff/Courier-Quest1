@@ -34,6 +34,10 @@ class UIManager:
 
         if self.parent.active_notification and self.parent.notification_timer > 0:
             self.parent.notification_text.text = self.parent.active_notification
+            self.parent.notification_text.anchor_x = "left"
+            self.parent.notification_text.anchor_y = "center"
+            self.parent.notification_text.x = int(getattr(self.parent, "SCREEN_WIDTH", self.parent.width)) - 350
+            self.parent.notification_text.y = 200
             self.parent.notification_text.draw()
 
         if self.parent._show_lose_overlay:
@@ -64,8 +68,7 @@ class UIManager:
         top = h - 10
         bottom = top - card_h
         right = left + card_w
-        _draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
-        _draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
+        # Fondo del HUD removido
 
         # Función para dibujar barras de progreso más pequeñas
         def draw_progress_bar(x, y, width, height, value01, fill_color, bg_color=(40, 45, 60)):
@@ -81,7 +84,7 @@ class UIManager:
             rem = gm.get_time_remaining() if gm else 0
             m = int(rem // 60); s = int(rem % 60)
             Text("⏰ Tiempo", left + 12, top - 20, (200, 210, 220), 10).draw()
-            Text(f"{m:02d}:{s:02d}", left + 12, top - 32, (240, 246, 255), 14, bold=True).draw()
+            Text(f"{m:02d}:{s:02d}", left + 12, top - 32, (240, 246, 255), 12, bold=True).draw()
         except Exception:
             Text("⏰ Tiempo", left + 12, top - 20, (200, 210, 220), 10).draw()
             Text("15:00", left + 12, top - 32, (240, 246, 255), 14, bold=True).draw()
@@ -103,7 +106,7 @@ class UIManager:
                 pass
             money = self.parent._get_state_money()
             Text("$ Ingresos / Meta", left + 12, top - 50, (120, 220, 160), 10).draw()
-            Text(f"${int(money)} / ${goal}", left + 12, top - 62, (240, 246, 255), 14, bold=True).draw()
+            Text(f"${int(money)} / ${goal}", left + 12, top - 62, (240, 246, 255), 12, bold=True).draw()
         except Exception:
             pass
 
@@ -111,7 +114,7 @@ class UIManager:
         try:
             Text("🔋 Resistencia", left + 12, top - 80, (200, 210, 220), 10).draw()
             stamina = getattr(self.parent.player_stats, "stamina", 100)
-            draw_progress_bar(left + 12, top - 90, card_w - 24, 8, stamina / 100.0, (80, 200, 255))
+            draw_progress_bar(left + 12, top - 88, card_w - 24, 8, stamina / 100.0, (80, 200, 255))
         except Exception:
             pass
 
@@ -119,7 +122,7 @@ class UIManager:
         try:
             Text("⭐ Reputación", left + 12, top - 105, (200, 210, 220), 10).draw()
             rep = getattr(self.parent.player_stats, "reputation", 70)
-            draw_progress_bar(left + 12, top - 115, card_w - 24, 8, rep / 100.0, (255, 220, 120))
+            draw_progress_bar(left + 12, top - 110, card_w - 24, 8, rep / 100.0, (255, 220, 120))
         except Exception:
             pass
 
@@ -169,9 +172,7 @@ class UIManager:
         bottom = top - panel_h
         right = left + panel_w
 
-        # Fondo del panel
-        _draw_rect_lrbt_filled(left, right, bottom, top, (25, 30, 45))
-        _draw_rect_lrbt_outline(left, right, bottom, top, (70, 85, 110), 2)
+
 
         # Título más pequeño
         Text("📦 INVENTARIO", left + 12, top - 20, (255, 220, 120), 12, bold=True).draw()
@@ -262,11 +263,11 @@ class UIManager:
         w = getattr(self.parent, 'SCREEN_WIDTH', self.parent.width)
         h = getattr(self.parent, 'SCREEN_HEIGHT', self.parent.height)
 
-        # Posición del botón en la mitad derecha de la pantalla
+        # Posición del botón justo debajo del botón de menú (arriba derecha)
         btn_w = 100
         btn_h = 35
         btn_left = w - btn_w - 10  # Mismo margen que el botón de menú
-        btn_top = h // 2 + btn_h // 2  # Mitad de la pantalla
+        btn_top = h - 10 - btn_h - 10  # Debajo del botón de menú con 10px de separación
         btn_right = btn_left + btn_w
         btn_bottom = btn_top - btn_h
 

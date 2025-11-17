@@ -52,11 +52,16 @@ class UndoManager:
             if "player_pos" in snap:
                 x, y = snap["player_pos"]
                 try:
-                    if hasattr(v.player, "set_cell"):
-                        v.player.set_cell(int(x), int(y))
-                    else:
-                        v.player.cell_x = int(x)
-                        v.player.cell_y = int(y)
+                    v.player.cell_x = int(x)
+                    v.player.cell_y = int(y)
+                    v.player.pixel_x, v.player.pixel_y = v.player.cell_to_pixel(v.player.cell_x, v.player.cell_y)
+                    v.player.target_pixel_x, v.player.target_pixel_y = v.player.pixel_x, v.player.pixel_y
+                    v.player.moving = False
+                    try:
+                        v.player.sprite.center_x = v.player.pixel_x
+                        v.player.sprite.center_y = v.player.pixel_y
+                    except Exception:
+                        pass
                 except Exception:
                     pass
             return True

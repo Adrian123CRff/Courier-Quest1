@@ -274,21 +274,6 @@ class JobsLogic:
                     data = {"job_id": jid, "seconds_late": seconds_late, "early_percent": early_percent}
                     rep_change = v.player_stats.update_reputation(event_type, data)
                     print(f"[REPUTATION] Event: {event_type}, change: {rep_change:+d}")
-
-                    # Notificación visual resumida del resultado de la entrega
-                    try:
-                        label = {
-                            "delivery_early": "🎉 Entrega temprana",
-                            "delivery_on_time": "✅ Entrega a tiempo",
-                            "delivery_late": "⏱️ Entrega tardía",
-                        }.get(event_type, "📦 Entrega")
-                        payoff = f"+$${int(payout)}" if payout else ""
-                        rep = f"{rep_change:+d} rep"
-                        msg = f"{label} {payoff} ({rep})"
-                        if hasattr(v, "show_notification"):
-                            v.show_notification(msg)
-                    except Exception:
-                        pass
                 except Exception as e:
                     print(f"[REPUTATION] Error actualizando reputación: {e}")
 

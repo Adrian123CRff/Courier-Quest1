@@ -1,11 +1,10 @@
-#save_manager.py
+# save_manager.py
 from __future__ import annotations
 
 import os
 import pickle
 import time
 from typing import Any, Dict
-
 
 SAVES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "saves")
 DEFAULT_SLOT = os.path.join(SAVES_DIR, "slot1.sav")
@@ -25,7 +24,8 @@ class SaveManager:
                 state.update(v.state)
             else:
                 # fallback: pick selected attributes
-                for name in ["map_data", "city_map", "orders", "jobs_data", "weather_state", "weather_data", "money", "player_x", "player_y", "elapsed_seconds", "inventory"]:
+                for name in ["map_data", "city_map", "orders", "jobs_data", "weather_state", "weather_data", "money",
+                             "player_x", "player_y", "elapsed_seconds", "inventory"]:
                     state[name] = getattr(v.state, name, None)
 
             # ensure player pos and elapsed time
@@ -116,20 +116,23 @@ class SaveManager:
                         setattr(v.state, k, val)
                     except Exception:
                         pass
-            
+
             # Restaurar estadísticas del jugador
             try:
                 if "player_stats" in state and hasattr(v, "player_stats") and v.player_stats:
                     player_stats_data = state["player_stats"]
                     v.player_stats.stamina = player_stats_data.get("stamina", 100.0)
                     v.player_stats.reputation = player_stats_data.get("reputation", 70)
-                    v.player_stats.consecutive_on_time_deliveries = player_stats_data.get("consecutive_on_time_deliveries", 0)
-                    v.player_stats.first_late_delivery_of_day = player_stats_data.get("first_late_delivery_of_day", True)
+                    v.player_stats.consecutive_on_time_deliveries = player_stats_data.get(
+                        "consecutive_on_time_deliveries", 0)
+                    v.player_stats.first_late_delivery_of_day = player_stats_data.get("first_late_delivery_of_day",
+                                                                                      True)
                     v.player_stats.is_resting = player_stats_data.get("is_resting", False)
                     v.player_stats.is_at_rest_point = player_stats_data.get("is_at_rest_point", False)
                     v.player_stats.last_rest_time = player_stats_data.get("last_rest_time", time.time())
                     v.player_stats._idle_recover_accum = player_stats_data.get("_idle_recover_accum", 0.0)
-                    print(f"[LOAD] Player stats restauradas: stamina={v.player_stats.stamina}, reputation={v.player_stats.reputation}")
+                    print(
+                        f"[LOAD] Player stats restauradas: stamina={v.player_stats.stamina}, reputation={v.player_stats.reputation}")
             except Exception as e:
                 print(f"[SAVE] Error restaurando player_stats: {e}")
 
@@ -144,7 +147,8 @@ class SaveManager:
                     v.score_system.lost_packages = score_data.get("lost_packages", 0)
                     v.score_system.game_start_time = score_data.get("game_start_time", time.time())
                     v.score_system.game_duration = score_data.get("game_duration", 900)
-                    print(f"[LOAD] Score system restaurado: money={v.score_system.total_money}, deliveries={v.score_system.deliveries_completed}")
+                    print(
+                        f"[LOAD] Score system restaurado: money={v.score_system.total_money}, deliveries={v.score_system.deliveries_completed}")
             except Exception as e:
                 print(f"[SAVE] Error restaurando score_system: {e}")
 
@@ -155,7 +159,8 @@ class SaveManager:
                     v.inventory.items = inventory_data.get("items", [])
                     v.inventory.current_weight = inventory_data.get("current_weight", 0.0)
                     v.inventory.max_weight = inventory_data.get("max_weight", 50.0)
-                    print(f"[LOAD] Inventario restaurado: {len(v.inventory.items)} items, weight={v.inventory.current_weight}")
+                    print(
+                        f"[LOAD] Inventario restaurado: {len(v.inventory.items)} items, weight={v.inventory.current_weight}")
             except Exception as e:
                 print(f"[SAVE] Error restaurando inventory: {e}")
 

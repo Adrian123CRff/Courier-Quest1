@@ -97,6 +97,11 @@ class UndoSystem:
         player_manager.pixel_x, player_manager.pixel_y = state['player_pixel_position']
         player_manager.target_pixel_x, player_manager.target_pixel_y = state['player_pixel_position']
         player_manager.moving = False
+        try:
+            player_manager.sprite.center_x = player_manager.pixel_x
+            player_manager.sprite.center_y = player_manager.pixel_y
+        except Exception:
+            pass
 
         # Restaurar estadísticas
         player_state.money = state['money']

@@ -559,11 +559,26 @@ class GameManager:
             return False
 
     def undo_n_steps(self, n: int) -> bool:
-        """Deshace las últimas N acciones."""
-        if not self.undo_system:
+        if not self.undo_system or not self.player_state or not self.player_state.inventory or not self.player_manager:
             return False
         try:
-            return self.undo_system.undo_n_steps(n)
+            last_state = None
+            steps = 0
+            for _ in range(max(0, int(n))):
+                if not self.undo_system.can_undo():
+                    break
+                last_state = self.undo_system.undo()
+                steps += 1
+            if last_state is None:
+                return False
+            self.undo_system.restore_state(
+                last_state,
+                self.player_state,
+                self.player_state.inventory,
+                self.player_state.weather_system,
+                self.player_manager
+            )
+            return True
         except Exception as e:
             print(f"[GAME_MANAGER] Error en undo_n_steps: {e}")
             return False

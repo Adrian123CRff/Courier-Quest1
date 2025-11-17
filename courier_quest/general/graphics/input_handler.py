@@ -29,9 +29,10 @@ class InputHandler:
 
         # snapshot for undo on any significant key
         try:
-            if key in (arcade.key.UP, arcade.key.DOWN, arcade.key.LEFT, arcade.key.RIGHT,
-                      arcade.key.W, arcade.key.A, arcade.key.S, arcade.key.D,
-                      arcade.key.P, arcade.key.E):
+            if key in (
+                arcade.key.UP, arcade.key.DOWN, arcade.key.LEFT, arcade.key.RIGHT,
+                arcade.key.P, arcade.key.E
+            ):
                 self.parent.undo.snapshot()
         except Exception:
             pass
@@ -232,51 +233,20 @@ class InputHandler:
             self._cancel_current_job()
             return
 
-        # Z: undo N steps (prompt for number)
-        if key == arcade.key.Z:
-            if self.waiting_for_undo_steps:
-                # Cancelar si ya estaba esperando
-                self.waiting_for_undo_steps = False
-                self.parent.show_notification("Deshacer cancelado")
-            else:
-                self.waiting_for_undo_steps = True
-                self.parent.show_notification("Ingresa número de pasos a deshacer (1-9):")
-            return
+        # Z eliminado para deshacer múltiple: solo el botón de UI permite deshacer
 
-        # Si estamos esperando el número de pasos para undo
-        if self.waiting_for_undo_steps:
-            if key >= arcade.key.KEY_1 and key <= arcade.key.KEY_9:
-                n = key - arcade.key.KEY_0
-                self.waiting_for_undo_steps = False
-                # Ejecutar undo N steps
-                undone = False
-                if self.parent.game_manager and hasattr(self.parent.game_manager, 'undo_n_steps'):
-                    try:
-                        undone = bool(self.parent.game_manager.undo_n_steps(n))
-                    except Exception as e:
-                        print(f"[INPUT] Error en undo_n_steps: {e}")
-                if undone:
-                    self.parent.show_notification(f"{n} acciones deshechas")
-                else:
-                    self.parent.show_notification("No se pudieron deshacer las acciones")
-            else:
-                # Cancelar si no es número válido
-                self.waiting_for_undo_steps = False
-                self.parent.show_notification("Deshacer cancelado")
-            return
-
-        # Manejo de movimiento con WASD y flechas
+        # Manejo de movimiento solo con flechas
         dx, dy = 0, 0
-        if key == arcade.key.UP or key == arcade.key.W:
+        if key == arcade.key.UP:
             dy = -1
             self.parent.facing = "up"
-        elif key == arcade.key.DOWN or key == arcade.key.S:
+        elif key == arcade.key.DOWN:
             dy = 1
             self.parent.facing = "down"
-        elif key == arcade.key.LEFT or key == arcade.key.A:
+        elif key == arcade.key.LEFT:
             dx = -1
             self.parent.facing = "left"
-        elif key == arcade.key.RIGHT or key == arcade.key.D:
+        elif key == arcade.key.RIGHT:
             dx = 1
             self.parent.facing = "right"
         else:
@@ -340,20 +310,13 @@ class InputHandler:
                     return
 
     def _handle_undo(self):
-        """Maneja la lógica de deshacer (usado tanto por teclado como por botón)"""
-        undone = False
-        if self.parent.game_manager and hasattr(self.parent.game_manager, 'undo_last_action'):
-            try:
-                undone = bool(self.parent.game_manager.undo_last_action())
-            except Exception:
-                undone = False
-        if not undone:
-            if self.parent.undo.restore():
-                undone = True
-        if undone:
-            self.parent.show_notification("Última acción deshecha")
-        else:
-            self.parent.show_notification("No hay acciones para deshacer")
+        try:
+            if hasattr(self.parent, "_undo_one_step"):
+                self.parent._undo_one_step()
+                return
+        except Exception:
+            pass
+        self.parent.show_notification("No hay acciones para deshacer")
 
     def _navigate_inventory_left(self):
         """Navega hacia la izquierda en el inventario"""
@@ -455,7 +418,9 @@ class InputHandler:
                     except Exception:
                         pass
 
-            self.parent.show_notification(f"Pedido {job_id} cancelado. Reputación: {rep_change:+d}")
+            self.parent.show_notification(
+                f"Pedido {job_id} cancelado. Reputación: {int(getattr(self.parent.player_stats, 'reputation', 0))} ({rep_change:+d})"
+            )
 
         except Exception as e:
             print(f"[CANCEL] Error cancelando pedido: {e}")
